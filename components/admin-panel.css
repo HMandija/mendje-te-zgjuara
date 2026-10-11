@@ -11,3 +11,10 @@
 @media(max-width:800px){.admin-layout{grid-template-columns:1fr}.admin-sidebar{position:static}.admin-sidebar nav{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-sidebar button{font-size:14px}.admin-root .panel{padding:20px}.admin-auth .admin-login{padding:24px}.admin-content header h2{font-size:23px}}
 @media(max-width:420px){.admin-stats{grid-template-columns:1fr}.admin-sidebar nav{grid-template-columns:1fr}.admin-auth-banner{height:150px}.admin-brand{font-size:19px}}
 @media(prefers-reduced-motion:reduce){.admin-root *{transition:none!important}}
+
+/* Keep admin controls independent of legacy purple panel button rules. */
+.admin-root button,.admin-root button.secondary{background:#f1f7fa!important;color:#45616d!important;border:0!important;box-shadow:none!important;text-decoration:none!important}
+.admin-root button:hover:not(:disabled){background:#e1f5e8!important;color:#276b42!important}
+.admin-root .admin-sidebar nav button[aria-current=page]{background:#4eb76f!important;color:#fff!important}
+.admin-root.admin-auth button.auth-submit{background:#50b970!important;color:#fff!important}
+.admin-root.admin-auth button.auth-submit:hover:not(:disabled){background:#349b55!important;color:#fff!important}
