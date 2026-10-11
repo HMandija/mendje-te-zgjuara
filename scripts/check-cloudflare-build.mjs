@@ -16,13 +16,14 @@ const request = worker.fetch(new Request('https://school.example/api/workspace',
   headers: { 'oai-authenticated-user-id': 'forged',
     'oai-authenticated-user-email': 'forged@example.com',
     'oai-authenticated-user-full-name': 'forged',
-    cookie: 'mendje_teacher=verified-session', authorization: 'Bearer pupil-session' },
+    cookie: 'mendje_teacher=verified-session', authorization: 'Bearer pupil-session','x-mendje-country':'forged' },
 }), {}, {});
 assert.equal(request.headers.get('oai-authenticated-user-id'), null);
 assert.equal(request.headers.get('oai-authenticated-user-email'), null);
 assert.equal(request.headers.get('oai-authenticated-user-full-name'), null);
 assert.equal(request.headers.get('cookie'), 'mendje_teacher=verified-session');
 assert.equal(request.headers.get('authorization'), 'Bearer pupil-session');
+assert.equal(request.headers.get('x-mendje-country'),null,'Client cannot forge logged country');
 async function inspect(directory) {
   for (const item of await readdir(directory, { withFileTypes: true })) {
     const path = directory + '/' + item.name;

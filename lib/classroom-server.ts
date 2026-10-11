@@ -1,3 +1,4 @@
+import {recordAccess} from "./admin-server";
 import {reserveMixed} from './mixed-pack.mjs';
 import {z} from 'zod';
 import {db,workspace,json,hash} from './school-server';
@@ -84,7 +85,7 @@ export async function loginPicture(r:Request,x:z.infer<typeof pictureInput>){
  await limit('picture-student:'+challenge.class+':'+x.profile,5,300000);
  const match=await db().prepare('SELECT l.picture FROM picture_logins l JOIN class_students m ON m.class=l.class AND m.profile=l.profile JOIN classes c ON c.id=l.class JOIN accounts a ON a.user=c.owner LEFT JOIN classroom_settings s ON s.class=c.id WHERE l.class=? AND l.profile=? AND COALESCE(s.archived,0)=0 AND a.enabled=1 AND a.role IN (\'TEACHER\',\'ADMIN\')').bind(challenge.class,x.profile).first<{picture:string}>();
  if(!match||match.picture!==x.picture)throw new ApiError(401,'Figura nuk përputhet. Provo sërish ose pyet mësuesin.');
- const token=randomToken();await db().prepare('INSERT INTO picture_sessions(hash,class,profile,expires) VALUES(?,?,?,?)').bind(await hash(token),challenge.class,x.profile,Date.now()+8*3600000).run();return json({token});
+ const token=randomToken();await db().prepare('INSERT INTO picture_sessions(hash,class,profile,expires) VALUES(?,?,?,?)').bind(await hash(token),challenge.class,x.profile,Date.now()+8*3600000).run();await recordAccess(r,challenge.class+':'+x.profile,'STUDENT');return json({token});
 }
 export async function logoutPicture(r:Request){const raw=r.headers.get('authorization')||'';if(/^Bearer [a-f0-9]{64}$/.test(raw))await db().prepare('DELETE FROM picture_sessions WHERE hash=?').bind(await hash(raw.slice(7))).run();return json({loggedOut:true});}
 export async function assignClasses(actor:Actor,x:z.infer<typeof bulkAssignmentInput>){

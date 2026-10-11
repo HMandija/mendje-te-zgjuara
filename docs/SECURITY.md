@@ -63,3 +63,6 @@ Standalone builds omit mock authentication and connector preview. Deployment
 starts with a new empty D1 database and does not import school data. Supabase
 runtime configuration and email delivery need account-side verification before
 rollout; current teacher cookies expire after at most one hour.
+# Administrator access
+
+The independent deployment adds `/admin` with server-side password plus email-OTP gating, a one-use 10-minute/5-attempt challenge, and a separate hashed, revocable 30-minute HttpOnly session. Teacher cookies do not authorize administrator APIs. `ADMIN_EMAIL` and the privileged Supabase key stay in runtime configuration. No passwords, picture secrets, OTPs, or provider tokens are returned in administrator listings. See ADMIN.md for provider activation and limits. Successful login IP/country/time is retained for 30 days, starting with this release. Page counters store fixed paths and UTC days, not query strings or IPs. Geolocation is approximate; traffic counts include repeated requests and bots. SMTP delivery requires live verification and is not asserted by mocked tests.
