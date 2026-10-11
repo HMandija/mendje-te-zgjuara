@@ -1,0 +1,10 @@
+# Teacher email authentication
+The landing page is /; the school dashboard is /teacher; email registration/login is /teacher/login.
+Supabase activation requires runtime variables SUPABASE_URL (https://PROJECT.supabase.co) and SUPABASE_PUBLISHABLE_KEY (publishable or legacy anon key). Never use a service-role key.
+Configure these through Sites runtime environment settings, and locally in ignored .dev.vars. Existing .dev.vars must not be overwritten.
+In Supabase Authentication enable Email and Confirm Email. Set Site URL to the deployed origin and allow /teacher/login redirect URLs for production and http://127.0.0.1:5173.
+Configure production SMTP in Supabase before school rollout.
+The server calls Supabase Auth REST signup/token/user. Email-confirmed identity is checked against /user on every school request; local metadata cannot assign roles. New verified identities get TEACHER only; accounts enabled flags remain authoritative. Student bearer tokens keep the separate existing path. IDs use supabase:UUID and create separate owner-scoped workspaces, without merging existing ChatGPT-owned school data.
+Passwords require 12–128 characters. Auth endpoints validate Zod input, exact Origin and rate limits. Tokens are HttpOnly, SameSite=Lax cookies with Secure in HTTPS, capped at 1 hour. Refresh is not implemented: login again after expiry. Logout clears the local cookie, then invokes existing ChatGPT signout if applicable. No password is persisted in application storage/logs.
+Without configuration the form explicitly reports pending activation and disables submission. No working-email claim is made before real credentials and end-to-end verification. Sites outer owner-private hosting access remains unchanged.
+Verification required after activation: signup, confirmation mail delivery, unconfirmed rejection, login, workspace isolation, disabled-account denial, logout and expiry. No live email was sent during development.

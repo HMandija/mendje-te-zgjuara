@@ -1,0 +1,43 @@
+/* Original layered 3D plush character. Heading is driven by the command trace. */
+.robot-model.plush-model{width:58%;height:86%;max-width:82px;max-height:105px}
+.plush-bear{position:absolute;inset:0;transform-style:preserve-3d;animation:plush-breathe 3s ease-in-out infinite}
+.plush-part{position:absolute;transform-style:preserve-3d;--fur:#d99552;--fur-light:#f7c38b}
+.plush-layer{position:absolute;inset:0;border-radius:48%;background:radial-gradient(ellipse at 30% 23%,var(--fur-light),var(--fur) 66%,#99582f);backface-visibility:visible;box-shadow:inset 0 -2px 2px #77412225}
+.plush-front{backface-visibility:hidden;background:radial-gradient(ellipse at 28% 18%,#ffe0b8,var(--fur-light) 34%,var(--fur) 83%)}
+.plush-head{left:7%;top:10%;width:86%;height:47%;transform:translateZ(2px)}
+.plush-body{left:16%;top:48%;width:68%;height:40%}
+.plush-ear{top:3%;width:29%;height:25%;--fur:#cb8748;--fur-light:#edb57f}
+.plush-ear .plush-front:after{content:'';position:absolute;inset:22%;border-radius:50%;background:#e8a497;box-shadow:inset 0 2px 3px #a5655050}
+.plush-ear.ear-left{left:-2%;transform:rotateZ(-16deg)}.plush-ear.ear-right{right:-2%;transform:rotateZ(16deg)}
+.plush-paw{width:26%;height:32%;top:51%;transform-origin:50% 12%}
+.plush-paw.paw-left{left:-1%;transform:rotateZ(19deg)}.plush-paw.paw-right{right:-1%;transform:rotateZ(-19deg)}
+.plush-foot{width:36%;height:24%;top:77%;transform:translateZ(3px);transform-origin:50% 0}
+.plush-foot.foot-left{left:7%}.plush-foot.foot-right{right:7%}
+.plush-pad{position:absolute;inset:26% 17% 10%;border-radius:50%;background:#f8d6b2;box-shadow:inset 0 1px 3px #ae7b5040}
+.plush-belly{position:absolute;inset:13% 15%;border-radius:50%;background:#ffe1bb;display:grid;place-items:center;border-bottom:1px dashed #c58c66}
+.plush-heart{color:#e76572;font-size:clamp(8px,1.5vw,19px);filter:drop-shadow(0 1px 0 #bd4356)}
+.plush-eye{position:absolute;top:32%;width:13%;height:18%;border-radius:48%;background:#332627;box-shadow:0 1px 1px #8c572950;animation:plush-blink 5.4s infinite;transform-origin:center}
+.plush-eye:after{content:'';position:absolute;left:24%;top:15%;width:33%;height:33%;background:white;border-radius:50%}
+.plush-eye.eye-left{left:22%}.plush-eye.eye-right{right:22%}
+.plush-cheek{position:absolute;top:51%;width:18%;height:14%;border-radius:50%;background:#ee9d88;opacity:.65}
+.plush-cheek.cheek-left{left:10%}.plush-cheek.cheek-right{right:10%}
+.plush-muzzle{position:absolute;left:26%;top:47%;width:48%;height:39%;border-radius:47%;background:radial-gradient(ellipse at top,#fff0d7,#ffe0bb);box-shadow:0 2px 1px #a96b3b35}
+.plush-nose{position:absolute;left:34%;top:17%;width:32%;height:24%;border-radius:45% 45% 55% 55%;background:#79503c;box-shadow:inset 1px 1px 1px #c39470}
+.plush-smile{position:absolute;left:27%;top:37%;width:46%;height:29%;border-bottom:2px solid #8f5c46;border-radius:0 0 50% 50%}
+.plush-smile:before{content:'';position:absolute;left:50%;height:56%;width:1px;background:#8f5c46}
+.plush-scarf{position:absolute;top:51%;left:16%;width:68%;height:10%;background:linear-gradient(#6acbc1,#309d95);border-radius:45%;transform:translateZ(9px);box-shadow:0 2px 1px #784c3030}
+.plush-scarf i{position:absolute;left:12%;top:55%;height:190%;width:25%;background:linear-gradient(90deg,#63c9bf,#399d95);border-radius:0 0 4px 4px;transform:rotateZ(10deg)}
+.plush-tail{position:absolute;left:38%;top:65%;width:25%;height:21%;border-radius:50%;background:radial-gradient(circle at 30% 30%,#ffcf9b,#c88948);transform:translateZ(-10px)}
+.plush-walking .plush-bear{animation:plush-waddle .58s ease-in-out}
+.plush-walking .plush-paw.paw-left{animation:plush-left-arm .58s ease-in-out}.plush-walking .plush-paw.paw-right{animation:plush-right-arm .58s ease-in-out}
+.plush-walking .plush-foot.foot-left{animation:plush-left-step .58s ease-in-out}.plush-walking .plush-foot.foot-right{animation:plush-right-step .58s ease-in-out}
+@keyframes plush-breathe{50%{translate:0 -1px;scale:1.015}}
+@keyframes plush-blink{0%,43%,47%,100%{scale:1 1}45%{scale:1 .12}}
+@keyframes plush-waddle{25%{translate:0 -3px;rotate:-4deg}75%{translate:0 -3px;rotate:4deg}}
+@keyframes plush-left-arm{25%{transform:rotateZ(30deg) rotateX(-20deg)}75%{transform:rotateZ(10deg) rotateX(20deg)}}
+@keyframes plush-right-arm{25%{transform:rotateZ(-10deg) rotateX(20deg)}75%{transform:rotateZ(-30deg) rotateX(-20deg)}}
+@keyframes plush-left-step{25%{transform:translateZ(6px) rotateX(-25deg)}75%{transform:translateZ(0) rotateX(15deg)}}
+@keyframes plush-right-step{25%{transform:translateZ(0) rotateX(15deg)}75%{transform:translateZ(6px) rotateX(-25deg)}}
+@media(prefers-reduced-motion:reduce){.plush-bear,.plush-eye,.plush-walking .plush-bear,.plush-walking .plush-paw,.plush-walking .plush-foot{animation:none}}
+
+.plush-side{transform:rotateY(90deg) scaleX(.55);background:radial-gradient(ellipse at 25% 20%,var(--fur-light),var(--fur) 68%,#99582f)}

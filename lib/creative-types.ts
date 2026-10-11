@@ -1,0 +1,12 @@
+export type DrawCommand={op:'forward'|'left'|'right';n:number};
+export type Point=[number,number];
+export type Figure={id:string;color:string;shape:'circle'|'square'|'triangle';number:number};
+export type CreativeBoard={kind:'draw'|'events'|'story'|'objects'|'tangram'|'rules'|'color';grade:number;band:number;level:number;
+ palette?:{symbol:string;color:string;name:string}[];cells?:{symbol:string}[];columns?:number;
+ size?:number;start?:Point;direction?:number;target?:Point[];maxCommands?:number;
+ events?:{id:string;label:string;actor:number;goal:string}[];actions?:{id:string;label:string}[];
+ story?:{scene:string;text:string;question:string;options:{id:string;label:string;response:string}[]}[];
+ tokens?:{id:string;value:number}[];goals?:number[];labels?:string[];
+ pieces?:Point[][];silhouette?:Point[][];initial?:{x:number;y:number;turn:number}[];
+ rounds?:{rule:string;labels:string[];figures:Figure[]}[];
+};

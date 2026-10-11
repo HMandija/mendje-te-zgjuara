@@ -1,0 +1,18 @@
+.student-login.student-auth{max-width:none;width:100%;margin:0;padding:0;min-height:100vh;background:#fff;color:#344449}
+.student-auth .auth-illustration{background:#e2fbd5}
+.student-auth .auth-content{max-width:560px;padding:30px 28px 44px}
+.student-auth .auth-content>p{max-width:440px;margin:18px auto;font-size:18px;line-height:1.6;color:#53636b}
+.student-auth .auth-content h1{font-size:30px}
+.student-login.student-auth form{max-width:none;display:grid;gap:14px;margin:24px 0;text-align:left}
+.student-auth label{display:grid;gap:8px;font-size:16px;font-weight:700}
+.student-auth input{height:60px;font-size:23px;text-align:left;letter-spacing:3px;text-transform:uppercase}
+.student-auth form>small{font-size:12px;color:#63757c}
+.student-auth .auth-submit{margin-top:8px}
+.student-auth .inline-link{color:#28784c;text-decoration:none;font-size:14px;margin-top:24px}
+.student-auth .inline-link:hover{text-decoration:underline}
+.student-auth .student-names button,.student-auth .picture-grid button{background:#eef8ef!important;color:#344449!important;border:1px solid #c3dfc9!important;box-shadow:none!important;border-radius:16px}
+.student-auth .student-names button:hover,.student-auth .picture-grid button:hover{background:#d9f2de!important;border-color:#389954!important}
+.student-auth .picture-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.student-auth .picture-grid small{font-size:12px}.student-auth .error{background:#fff0ef!important;color:#9a3030!important}
+@media(max-width:560px){.student-auth .auth-content{padding:26px 22px 36px}.student-auth .auth-content h1{font-size:26px}.student-auth .auth-content>p{font-size:16px}.student-auth .auth-illustration{height:190px}}
+@media(max-width:360px){.student-auth .picture-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
