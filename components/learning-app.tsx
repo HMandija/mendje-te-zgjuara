@@ -2,6 +2,7 @@
 'use client';
 import {AnswerCelebration} from './answer-celebration';
 import {TeacherSignout} from './teacher-signout';
+import {clearStudentSession,endStudentSession,getStudentToken,readStudentCache,startStudentSession,writeStudentCache} from '../lib/student-session';
 /* eslint-disable @next/next/no-location-assign-relative-destination -- Use document navigation while Vinext client navigation has the observed production failure. */
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
@@ -84,6 +85,7 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
   const [invite, setInvite] = useState<{ profile: string; url: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const token = useRef('');
+  const leaving = useRef(false);
   const cacheKey = useRef('');
   const current = useRef<Cache>({ config: EMPTY, revision: 0, pending: [] });
   const saving = useRef(false);
@@ -94,10 +96,15 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
   useEffect(()=>{if(screen!=='result'||!adventure?.stars||celebrated.current===adventure.id)return;celebrated.current=adventure.id;play('complete');celebrate();},[screen,adventure,play,celebrate]);
 
   const storeCache = useCallback(() => {
-    if (!cacheKey.current) return;
-    try { localStorage.setItem(cacheKey.current, JSON.stringify(current.current)); } catch { setStorageError(true); }
-  }, []);
+    if (leaving.current || !cacheKey.current) return;
+    try {
+      if(student)writeStudentCache(token.current, {pending:current.current.pending});
+      else localStorage.setItem(cacheKey.current, JSON.stringify(current.current));
+    } catch { setStorageError(true); }
+  }, [student]);
   const api = useCallback(async <T,>(path: string, method = 'GET', data?: unknown): Promise<T> => {
+    if(leaving.current)throw Error('Duke dalë nga llogaria.');
+    const requestToken=token.current;
     const headers: Record<string, string> = {};
     if (data !== undefined) headers['Content-Type'] = 'application/json';
     if (student) headers.Authorization = 'Bearer ' + token.current;
@@ -106,6 +113,8 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
       const response = await fetch(path, { method:method==='DOWNLOAD'?'GET':method, headers, body: data === undefined ? undefined : JSON.stringify(data), cache: 'no-store', signal: controller.signal });
       if(method==='DOWNLOAD'&&response.ok){const blob=await response.blob();const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1]||'mendje.pdf';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return {} as T;}
       const result: unknown = await response.json();
+      if(student && (leaving.current || token.current!==requestToken))throw Error('Hyrja ka ndryshuar.');
+      if(student && response.status===401){clearStudentSession();token.current='';leaving.current=true;location.href='/student';}
       if (!response.ok) throw Object.assign(Error(result && typeof result === 'object' && 'error' in result ? String(result.error) : 'Kërkesa dështoi.'),{status:response.status});
       return result as T;
     } finally { clearTimeout(timer); }
@@ -143,7 +152,7 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
   }, [api, storeCache, student, syncConfig]);
 
   const connect = useCallback(async () => {
-    if (connecting.current) return;
+    if (connecting.current || leaving.current) return;
     connecting.current = true; setReady(false); setStatus('Po lidhim klasën…');
     try {
       const preferences = readJSON(STORAGE);
@@ -153,21 +162,22 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
       let cfg: Config, revision = 0, selected = String(preferences.activeProfile || ''), rows: SavedSession[];
       if (student) {
         const fragment = new URLSearchParams(location.hash.slice(1)).get('token');
-        token.current = fragment || String(sessionStorage.getItem('mendje-picture-token') || localStorage.getItem('mendje-student-token') || '');
         if (fragment) {
           setAdventure(null); setScreen('home'); setHint(false); setHintStep(0); setMemoryVisible(true);
-          try { localStorage.setItem('mendje-student-token', fragment); } catch { setStorageError(true); }
           history.replaceState(null, '', location.pathname + location.search);
+          startStudentSession(fragment);
         }
+        token.current=getStudentToken();
+        if(!token.current){location.href='/student';return;}
         const data = await api<StudentWorkspace>('/api/student');
         cfg = { profiles: [data.profile], custom: [] }; setStudentCustom(data.custom); selected = data.profile.id; rows = data.sessions;
-        cacheKey.current = 'mendje-cloud-student-' + token.current;
+        cacheKey.current = 'student-session';
       } else {
         const data = await api<Workspace>('/api/workspace');
         cfg = { profiles: data.profiles, custom: data.custom }; revision = data.revision; rows = data.sessions;
         cacheKey.current = 'mendje-cloud-teacher-' + data.scope;
       }
-      const cached = readJSON(cacheKey.current) as Partial<Cache> & { lastConfig?: string };
+      const cached = (student ? readStudentCache() : readJSON(cacheKey.current)) as Partial<Cache> & { lastConfig?: string };
       const oldDirty = cached.config && cached.lastConfig && JSON.stringify(cached.config) !== cached.lastConfig;
       let dirty = false;
       if (!student && cached.config && (cached.dirty || oldDirty) && validWorkspace(cached.config)) {
@@ -179,7 +189,7 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
       }
       // Preserve legacy pending data for export, but never submit client-scored records as verified results.
       const pending = Array.isArray(cached.pending) ? cached.pending.filter(s => s.verified === true) : [];
-      if (Array.isArray(cached.pending) && cached.pending.some(s => s.verified !== true)) {
+      if (!student && Array.isArray(cached.pending) && cached.pending.some(s => s.verified !== true)) {
         localStorage.setItem(cacheKey.current + '-legacy-pending', JSON.stringify(cached.pending.filter(s => s.verified !== true)));
       }
       current.current = { config: cfg, revision, pending, dirty };
@@ -203,12 +213,27 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
     return () => {clearTimeout(timer);window.removeEventListener('hashchange',reconnect);};
   }, [connect,student]);
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || student) return;
     try {
       const old = readJSON(STORAGE);
       localStorage.setItem(STORAGE, JSON.stringify({ ...old, grade, count, reflection, activeProfile: active }));
     } catch { /* Cache is optional; server data remains available. */ }
-  }, [ready, grade, count, reflection, active]);
+  }, [ready, grade, count, reflection, active, student]);
+
+  function logoutStudent() {
+    if(leaving.current)return;
+    if(current.current.pending.length&&!window.confirm('Disa rezultate ende nuk janë ruajtur në server. Nëse del tani, kopja në këtë skedë do të fshihet. Të dalësh?'))return;
+    leaving.current=true;
+    const bearer=token.current;
+    token.current='';cacheKey.current='';
+    current.current={config:EMPTY,revision:0,pending:[]};
+    setConfig(EMPTY);setSessions([]);setStudentCustom([]);setAdventure(null);setActive('');setReady(false);setBusy(true);setStatus('Duke dalë nga llogaria…');
+    void endStudentSession(async()=>{
+      const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),3000);
+      try{await fetch('/api/class-login',{method:'DELETE',headers:{Authorization:'Bearer '+bearer},cache:'no-store',signal:controller.signal});}
+      finally{clearTimeout(timer);}
+    },()=>{location.href='/student';});
+  }
   const item = adventure?.items[adventure.index];
   const answered = !!adventure && adventure.answers.length > adventure.index;
   useEffect(() => {
@@ -335,7 +360,7 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
   if(visitor&&!student)return <VisitorExperience/>;
   return <div className={screen==='exercise'?'learning-shell lesson-shell':'learning-shell dashboard-shell'}>
     {screen==='exercise'&&answerCelebration&&<AnswerCelebration key={answerCelebration.id} name={answerCelebration.name}/>}
-    <header className="app-header"><button className="brand" onClick={() => navigate('home')}><span className="brand-icon"><BrainCircuit size={25} strokeWidth={2.4} /></span><span>Mendje të<br /><strong>Zgjuara</strong></span></button><nav className="nav" aria-label="Navigimi">{(student ? [['home', 'Misionet e mia']] : [['classes','Klasat e mia'],['home', 'Ushtrimet'],['course','Kursi & klasat'], ['teacher', 'Për mësuesin'], ['ideas', 'Ide për klasën']]).map(([key, label]) => <button key={key} className={screen === key || key === 'home' && ['exercise', 'pause', 'result'].includes(screen) ? 'active' : ''} onClick={() => navigate(key as Screen)}>{key === 'home' ? <BookOpen size={18} /> : key === 'teacher' ? <GraduationCap size={19} /> : key === 'notebook' ? <NotebookPen size={18} /> : <Lightbulb size={18} />}{label}</button>)}</nav><div className="header-tools"><DisplaySettings/>{!student&&<TeacherSignout/>}{student&&<button className="ghost" onClick={()=>void api('/api/class-login','DELETE').finally(()=>{sessionStorage.removeItem('mendje-picture-token');localStorage.removeItem('mendje-student-token');location.href='/student';})}>Dil</button>}<div className="header-score" title="Përgjigje të sakta në profilin dhe klasën e zgjedhur"><Star size={21} fill="currentColor" /><span>{correctCount}<small>të sakta</small></span></div></div></header>
+    <header className="app-header"><button className="brand" onClick={() => navigate('home')}><span className="brand-icon"><BrainCircuit size={25} strokeWidth={2.4} /></span><span>Mendje të<br /><strong>Zgjuara</strong></span></button><nav className="nav" aria-label="Navigimi">{(student ? [['home', 'Misionet e mia']] : [['classes','Klasat e mia'],['home', 'Ushtrimet'],['course','Kursi & klasat'], ['teacher', 'Për mësuesin'], ['ideas', 'Ide për klasën']]).map(([key, label]) => <button key={key} className={screen === key || key === 'home' && ['exercise', 'pause', 'result'].includes(screen) ? 'active' : ''} onClick={() => navigate(key as Screen)}>{key === 'home' ? <BookOpen size={18} /> : key === 'teacher' ? <GraduationCap size={19} /> : key === 'notebook' ? <NotebookPen size={18} /> : <Lightbulb size={18} />}{label}</button>)}</nav><div className="header-tools"><DisplaySettings/>{!student&&<TeacherSignout/>}{student&&<button className="ghost" onClick={logoutStudent} disabled={busy}>Dil</button>}<div className="header-score" title="Përgjigje të sakta në profilin dhe klasën e zgjedhur"><Star size={21} fill="currentColor" /><span>{correctCount}<small>të sakta</small></span></div></div></header>
     <main className={screen === 'home' ? 'course-main' : 'workspace-main'}>
       <div className={'connection-strip ' + (ready && normalStatus ? 'connected' : '')} role="status"><span>{ready && normalStatus ? <><CircleCheck size={14} /> Gati për të mësuar</> : status}</span><button className="connection-refresh" title={ready ? 'Rifresko progresin' : 'Provo përsëri'} aria-label={ready ? 'Rifresko progresin' : 'Provo përsëri'} disabled={screen === 'exercise' || busy} onClick={() => { if (current.current.dirty && !window.confirm('Ka ndryshime lokale. Eksporto bibliotekën përpara rifreskimit. Të vazhdojmë?')) return; void connect(); }}><RotateCw size={14} />{!ready && 'Provo përsëri'}</button>{!ready && !student && <a className="inline-link" href="/teacher/login">Hyr si mësues</a>}</div>
       {storageError && <p className="error" role="alert">Ruajtja lokale nuk është e disponueshme. Mbaje faqen hapur derisa ndryshimet të ruhen në server.</p>}
