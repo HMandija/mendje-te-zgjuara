@@ -1,4 +1,5 @@
 import {recordAccess} from "./admin-server";
+import {guardedPictureLogin} from './picture-login-guard';
 import {reserveMixed} from './mixed-pack.mjs';
 import {z} from 'zod';
 import {db,workspace,json,hash} from './school-server';
@@ -27,7 +28,7 @@ export const bulkAssignmentInput=z.object({classes:z.array(identifier).min(1).ma
 export const editAssignmentInput=z.object({id:identifier,task:taskInput}).strict();
 export const deleteAssignmentInput=z.object({id:identifier}).strict();
 const randomToken=()=>[...crypto.getRandomValues(new Uint8Array(32))].map(b=>b.toString(16).padStart(2,'0')).join('');
-const randomPicture=()=>pictureIds[crypto.getRandomValues(new Uint32Array(1))[0]%pictureIds.length];
+const randomPicture=(previous?:string)=>{const options=pictureIds.filter(id=>id!==previous);return options[crypto.getRandomValues(new Uint32Array(1))[0]%options.length];};
 async function changeProfiles(actor:Actor,transform:(p:Awaited<ReturnType<typeof workspace>>['profiles'])=>Awaited<ReturnType<typeof workspace>>['profiles']){
  const w=await workspace(actor.owner),profiles=transform(w.profiles);
  if(profiles.length>2000)throw new ApiError(400,'Eksporto ose arkivo të dhënat përpara se të shtosh më shumë nxënës.');
@@ -38,8 +39,8 @@ async function changeProfiles(actor:Actor,transform:(p:Awaited<ReturnType<typeof
 }
 export async function rosterData(actor:Actor,id:string){
  const c=await ownedClass(actor,id),w=await workspace(actor.owner);
- const members=await db().prepare('SELECT m.profile,l.picture FROM class_students m LEFT JOIN picture_logins l ON l.class=m.class AND l.profile=m.profile WHERE m.class=?').bind(c.id).all<{profile:string;picture:string|null}>();
- return json({students:members.results.flatMap(m=>{const p=w.profiles.find(p=>p.id===m.profile);return p?[{...p,picture:m.picture}]:[];})});
+ const members=await db().prepare('SELECT m.profile,l.picture,g.locked,g.retry_at FROM class_students m LEFT JOIN picture_logins l ON l.class=m.class AND l.profile=m.profile LEFT JOIN picture_login_guard g ON g.class=m.class AND g.profile=m.profile WHERE m.class=?').bind(c.id).all<{profile:string;picture:string|null;locked:number|null;retry_at:number|null}>();
+ return json({students:members.results.flatMap(m=>{const p=w.profiles.find(p=>p.id===m.profile);return p?[{...p,picture:m.picture,loginLocked:!!m.locked,loginWaiting:(m.retry_at||0)>Date.now()}]:[];})});
 }
 export async function rosterAction(actor:Actor,x:z.infer<typeof rosterInput>){
  const c=await ownedClass(actor,x.class);await limit('roster-write:'+actor.principal,60);
@@ -66,7 +67,7 @@ export async function rosterAction(actor:Actor,x:z.infer<typeof rosterInput>){
  }
  const m=await db().prepare('SELECT profile FROM class_students WHERE class=? AND profile=?').bind(c.id,x.profile).first();if(!m)throw new ApiError(404,'Nxënësi nuk u gjet në këtë klasë.');
  if(x.action==='rename')await changeProfiles(actor,p=>p.map(p=>p.id===x.profile?{...p,name:x.name}:p));
- if(x.action==='picture')await db().batch([db().prepare('INSERT INTO picture_logins(class,profile,picture) VALUES(?,?,?) ON CONFLICT(class,profile) DO UPDATE SET picture=excluded.picture').bind(c.id,x.profile,x.picture||randomPicture()),db().prepare('DELETE FROM picture_sessions WHERE class=? AND profile=?').bind(c.id,x.profile)]);
+ if(x.action==='picture'){const old=await db().prepare('SELECT picture FROM picture_logins WHERE class=? AND profile=?').bind(c.id,x.profile).first<{picture:string}>();await db().batch([db().prepare('INSERT INTO picture_logins(class,profile,picture) VALUES(?,?,?) ON CONFLICT(class,profile) DO UPDATE SET picture=excluded.picture').bind(c.id,x.profile,x.picture||randomPicture(old?.picture)),db().prepare('DELETE FROM picture_sessions WHERE class=? AND profile=?').bind(c.id,x.profile)]);}
  if(x.action==='remove')await db().batch([db().prepare('DELETE FROM class_students WHERE class=? AND profile=?').bind(c.id,x.profile),db().prepare('DELETE FROM picture_logins WHERE class=? AND profile=?').bind(c.id,x.profile),db().prepare('DELETE FROM picture_sessions WHERE class=? AND profile=?').bind(c.id,x.profile)]);
  return json({saved:true});
 }
@@ -82,10 +83,7 @@ export async function loginPicture(r:Request,x:z.infer<typeof pictureInput>){
  await limit('picture-ip:'+(r.headers.get('cf-connecting-ip')||'private-site'),300,300000);
  const challenge=await db().prepare('SELECT class FROM roster_challenges WHERE hash=? AND expires>?').bind(await hash(x.challenge),Date.now()).first<{class:string}>();
  if(!challenge)throw new ApiError(401,'Kodi ka skaduar. Vendose sërish.');
- await limit('picture-student:'+challenge.class+':'+x.profile,5,300000);
- const match=await db().prepare('SELECT l.picture FROM picture_logins l JOIN class_students m ON m.class=l.class AND m.profile=l.profile JOIN classes c ON c.id=l.class JOIN accounts a ON a.user=c.owner LEFT JOIN classroom_settings s ON s.class=c.id WHERE l.class=? AND l.profile=? AND COALESCE(s.archived,0)=0 AND a.enabled=1 AND a.role IN (\'TEACHER\',\'ADMIN\')').bind(challenge.class,x.profile).first<{picture:string}>();
- if(!match||match.picture!==x.picture)throw new ApiError(401,'Figura nuk përputhet. Provo sërish ose pyet mësuesin.');
- const token=randomToken();await db().prepare('INSERT INTO picture_sessions(hash,class,profile,expires) VALUES(?,?,?,?)').bind(await hash(token),challenge.class,x.profile,Date.now()+8*3600000).run();await recordAccess(r,challenge.class+':'+x.profile,'STUDENT');return json({token});
+ const token=await guardedPictureLogin(challenge.class,x.profile,x.picture,await hash(x.challenge));await recordAccess(r,challenge.class+':'+x.profile,'STUDENT');return json({token});
 }
 export async function logoutPicture(r:Request){const raw=r.headers.get('authorization')||'';if(/^Bearer [a-f0-9]{64}$/.test(raw)){const h=await hash(raw.slice(7));await db().batch([db().prepare('DELETE FROM picture_sessions WHERE hash=?').bind(h),db().prepare('UPDATE invitations SET revoked=1 WHERE hash=?').bind(h)]);}return json({loggedOut:true});}
 export async function assignClasses(actor:Actor,x:z.infer<typeof bulkAssignmentInput>){
