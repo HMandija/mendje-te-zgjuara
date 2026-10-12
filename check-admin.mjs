@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
 import {DatabaseSync} from 'node:sqlite';
-const sql=new DatabaseSync(':memory:');sql.exec(fs.readFileSync('drizzle/0010_admin_access.sql','utf8'));
+const sql=new DatabaseSync(':memory:');for(const file of fs.readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())sql.exec(fs.readFileSync('drizzle/'+file,'utf8'));
 const database={prepare(query){let args=[];return {bind(...values){args=values;return this;},async first(){return sql.prepare(query).get(...args)||null;},async run(){return sql.prepare(query).run(...args);}};},async batch(statements){return Promise.all(statements.map(s=>s.run()));}};
-globalThis.__adminTest={env:{ADMIN_EMAIL:'admin@example.test'},database,authCalls:[],async authCall(path,method,data){this.authCalls.push(path);if(path.startsWith('token')){if(data.password!=='test-password-only')throw new Error('Invalid password');return {user:{id:'admin-id',email:'admin@example.test',email_confirmed_at:'now'}};}if(path==='verify'){if(data.token!=='123456')throw new Error('Invalid OTP');return {user:{id:'admin-id',email:'admin@example.test',email_confirmed_at:'now'}};}return {};}};
+globalThis.__adminTest={env:{ADMIN_EMAIL:'admin@example.test'},database,authCalls:[],async authCall(path,method,data){this.authCalls.push(path);if(path.startsWith('token')){if(data.password!=='test-password-only')throw new Error('Invalid password');return {user:{id:'admin-id',email:'admin@example.test',email_confirmed_at:'now'}};}if(path==='verify'){if(data.token!=='123456')throw new Error('Invalid OTP');return {user:{id:'admin-id',email:'admin@example.test',email_confirmed_at:'now'},access_token:'fixture-provider-access-token',expires_in:3600};}if(path==='user')return {id:'admin-id',email:this.providerEmail||'admin@example.test',email_confirmed_at:'now'};return {};}};
 let source=fs.readFileSync('lib/admin-server.ts','utf8').replace(/^import .*;\r?\n/gm,'');
-source=`const env=globalThis.__adminTest.env;const db=()=>globalThis.__adminTest.database;const hash=async value=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value));return Buffer.from(b).toString('hex');};const json=Response.json;class ApiError extends Error{constructor(status,message){super(message);this.status=status;}}const limit=async()=>{};const authCall=(...args)=>globalThis.__adminTest.authCall(...args);\n`+source;
+source=`const env=globalThis.__adminTest.env;const db=()=>globalThis.__adminTest.database;const hash=async value=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value));return Buffer.from(b).toString('hex');};const json=Response.json;class ApiError extends Error{constructor(status,message){super(message);this.status=status;}}const limit=async()=>{};const authCall=(...args)=>globalThis.__adminTest.authCall(...args);const authCookieToken=(r,name)=>r.headers.get('cookie')?.split(';').map(v=>v.trim()).find(v=>v.startsWith(name+'='))?.slice(name.length+1)||null;const revokeProviderSession=async()=>{};\n`+source;
 const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
 const api=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
 const request=cookie=>new Request('https://school.test/api/admin/auth',{headers:cookie?{cookie}:undefined});
@@ -20,7 +20,7 @@ const challenge=start.headers.get('set-cookie').split(';')[0];
 assert.match(start.headers.get('set-cookie'),/HttpOnly; SameSite=Strict/);
 await assert.rejects(api.adminIdentity(request(challenge)));
 const verified=await api.verifyAdmin(request(challenge),'123456');
-const session=verified.headers.getSetCookie().find(c=>c.startsWith('mendje_admin=')).split(';')[0];
+const session=verified.headers.getSetCookie().filter(c=>!c.startsWith('mendje_admin_challenge=')).map(c=>c.split(';')[0]).join('; ');
 assert.equal(await api.adminIdentity(request(session)),'admin-id');
 await assert.rejects(api.verifyAdmin(request(challenge),'123456'));
 await api.logoutAdmin(request(session));await assert.rejects(api.adminIdentity(request(session)));
@@ -31,6 +31,14 @@ const third=await api.startAdmin(request(),'admin@example.test','test-password-o
 sql.exec('UPDATE admin_sessions SET expires=0');await assert.rejects(api.adminIdentity(request(session)));
 assert.equal(sql.prepare('SELECT count(*) AS n FROM access_events').get().n,1);
 await assert.rejects(api.adminUsers(1));
+async function loginAdmin(){const start=await api.startAdmin(request(),'admin@example.test','test-password-only');const verified=await api.verifyAdmin(request(start.headers.get('set-cookie').split(';')[0]),'123456');return verified.headers.getSetCookie().filter(c=>!c.startsWith('mendje_admin_challenge=')).map(c=>c.split(';')[0]).join('; ');}
+const configured=await loginAdmin();globalThis.__adminTest.env.ADMIN_EMAIL='other@example.test';await assert.rejects(api.adminIdentity(request(configured)));globalThis.__adminTest.env.ADMIN_EMAIL='admin@example.test';await assert.rejects(api.adminIdentity(request(configured)));
+const changedEmail=await loginAdmin();globalThis.__adminTest.providerEmail='changed@example.test';await assert.rejects(api.adminIdentity(request(changedEmail)));delete globalThis.__adminTest.providerEmail;await assert.rejects(api.adminIdentity(request(changedEmail)));
+const disabled=await loginAdmin();sql.exec("UPDATE accounts SET enabled=0 WHERE user='supabase:admin-id'");await assert.rejects(api.adminIdentity(request(disabled)));await assert.rejects(api.startAdmin(request(),'admin@example.test','test-password-only'));sql.exec("UPDATE accounts SET enabled=1 WHERE user='supabase:admin-id'");await assert.rejects(api.adminIdentity(request(disabled)));
+const bound=await loginAdmin();await assert.rejects(api.adminIdentity(request(bound.replace('fixture-provider-access-token','another-provider-access-token'))));await assert.rejects(api.adminIdentity(request(bound)));
+const pendingStart=await api.startAdmin(request(),'admin@example.test','test-password-only'),pendingCookie=pendingStart.headers.get('set-cookie').split(';')[0];const restarted=await api.startAdmin(request(pendingCookie),'admin@example.test','test-password-only');await assert.rejects(api.verifyAdmin(request(pendingCookie),'123456'));await api.logoutAdmin(request(restarted.headers.get('set-cookie').split(';')[0]));await assert.rejects(api.verifyAdmin(request(restarted.headers.get('set-cookie').split(';')[0]),'123456'));
+const legacy='a'.repeat(64);sql.prepare('INSERT INTO admin_sessions(hash,user,expires) VALUES(?,?,?)').run(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(legacy)).then(b=>Buffer.from(b).toString('hex')),'admin-id',Date.now()+60000);await assert.rejects(api.adminIdentity(request('mendje_admin='+legacy)));
+
 globalThis.__adminTest.env.SUPABASE_SECRET_KEY='fixture-server-key';globalThis.__adminTest.env.SUPABASE_URL='https://fixture.supabase.co';
 const originalFetch=globalThis.fetch;
 globalThis.fetch=async()=>Response.json({users:[{id:'user-id',email:'teacher@example.test',created_at:'now',encrypted_password:'must-not-leak',user_metadata:{private:'must-not-leak'},access_token:'must-not-leak'}]});
