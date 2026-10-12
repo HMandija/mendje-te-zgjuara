@@ -1,8 +1,14 @@
 import handler from "vinext/server/fetch-handler";
+import { browserPolicy, createScriptNonce, secureBrowserResponse } from '../lib/browser-security.mjs';
 
 export default {
-  fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext) {
+  async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext) {
     const headers = new Headers(request.headers);
+    const nonce = createScriptNonce();
+    const policy = browserPolicy(nonce);
+    headers.set('Content-Security-Policy', policy);
+    headers.delete('Content-Security-Policy-Report-Only');
+    headers.set('x-nonce', nonce);
     for (const name of [...headers.keys()]) {
       if (name.startsWith("oai-authenticated-user-")) headers.delete(name);
     }
@@ -19,6 +25,7 @@ export default {
         env.DB.prepare('DELETE FROM traffic_days WHERE day<?').bind(new Date(Date.now()-30*86400000).toISOString().slice(0,10)),
       ]).catch(()=>{console.error('Traffic counters unavailable');}));
     }
-    return handler.fetch(new Request(request, { headers }), env, ctx);
+    const response = await handler.fetch(new Request(request, { headers }), env, ctx);
+    return secureBrowserResponse(response, request, policy);
   },
 };

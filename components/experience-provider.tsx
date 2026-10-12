@@ -8,7 +8,7 @@ type Sound='click'|'cheer'|'page'|'react'|'correct'|'wrong'|'complete'|'pick'|'d
 type Experience={muted:boolean;toggleMute:()=>void;play:(sound:Sound)=>void;celebrate:()=>void};
 const ExperienceContext=createContext<Experience>({muted:true,toggleMute:()=>{},play:()=>{},celebrate:()=>{}});
 export const useExperience=()=>useContext(ExperienceContext);
-export function ExperienceProvider({children}:{children:ReactNode}){
+export function ExperienceProvider({children,nonce}:{children:ReactNode;nonce?:string}){
  const [muted,setMuted]=useState(true);const mute=useRef(true);const sounds=useRef<Partial<Record<Sound,Howl>>>({});const lastCue=useRef({time:0,sound:''}),rewardUntil=useRef(0);
  useEffect(()=>{try{mute.current=localStorage.getItem('mendje-sound')!=='on';const timer=setTimeout(()=>setMuted(mute.current),0);return()=>clearTimeout(timer);}catch{}},[]);
  const play=useCallback((sound:Sound)=>{
@@ -32,5 +32,5 @@ export function ExperienceProvider({children}:{children:ReactNode}){
  },[play]);
  const celebrate=useCallback(()=>{if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;void import('canvas-confetti').then(({default:confetti})=>confetti({particleCount:65,spread:60,origin:{y:.7},disableForReducedMotion:true,colors:['#a78bdd','#77cf9a','#ffd879'],ticks:130})).catch(()=>{});},[]);
  useEffect(()=>()=>{Object.values(sounds.current).forEach(sound=>sound?.unload());},[]);
- return <ThemeProvider attribute="data-theme" defaultTheme="light" enableSystem={false} enableColorScheme><MotionConfig reducedMotion="user"><ExperienceContext.Provider value={{muted,toggleMute,play,celebrate}}>{children}<Toaster richColors position="bottom-center" closeButton containerAriaLabel="Njoftimet" toastOptions={{closeButtonAriaLabel:'Mbyll njoftimin'}}/></ExperienceContext.Provider></MotionConfig></ThemeProvider>;
+ return <ThemeProvider nonce={nonce} attribute="data-theme" defaultTheme="light" enableSystem={false} enableColorScheme><MotionConfig reducedMotion="user"><ExperienceContext.Provider value={{muted,toggleMute,play,celebrate}}>{children}<Toaster richColors position="bottom-center" closeButton containerAriaLabel="Njoftimet" toastOptions={{closeButtonAriaLabel:'Mbyll njoftimin'}}/></ExperienceContext.Provider></MotionConfig></ThemeProvider>;
 }

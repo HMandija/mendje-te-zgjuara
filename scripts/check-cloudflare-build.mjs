@@ -9,14 +9,16 @@ assert.equal(config.services.length, 0, 'Preview connector must not reach produc
 const source = await readFile('build/cloudflare-worker.ts', 'utf8');
 // Execute the actual gateway logic with a stubbed framework handler, no DB/network.
 const executable = source.replace('import handler from "vinext/server/fetch-handler";',
-  'const handler = { fetch: (request) => request };')
+  'const handler = { fetch: (request) => new Response(null, { headers: request.headers }) };')
+  .replace("'../lib/browser-security.mjs'", JSON.stringify(new URL('../lib/browser-security.mjs', import.meta.url).href))
   .replace('request: Request, env: Cloudflare.Env, ctx: ExecutionContext', 'request, env, ctx');
 const worker = (await import('data:text/javascript;base64,' + Buffer.from(executable).toString('base64'))).default;
-const request = worker.fetch(new Request('https://school.example/api/workspace', {
+const request = await worker.fetch(new Request('https://school.example/api/workspace', {
   headers: { 'oai-authenticated-user-id': 'forged',
     'oai-authenticated-user-email': 'forged@example.com',
     'oai-authenticated-user-full-name': 'forged',
-    cookie: 'mendje_teacher=verified-session', authorization: 'Bearer pupil-session','x-mendje-country':'forged' },
+    cookie: 'mendje_teacher=verified-session', authorization: 'Bearer pupil-session','x-mendje-country':'forged',
+    'x-nonce': 'forged', 'Content-Security-Policy': "script-src 'nonce-forged'", 'Content-Security-Policy-Report-Only': 'forged' },
 }), {}, {});
 assert.equal(request.headers.get('oai-authenticated-user-id'), null);
 assert.equal(request.headers.get('oai-authenticated-user-email'), null);
@@ -24,6 +26,14 @@ assert.equal(request.headers.get('oai-authenticated-user-full-name'), null);
 assert.equal(request.headers.get('cookie'), 'mendje_teacher=verified-session');
 assert.equal(request.headers.get('authorization'), 'Bearer pupil-session');
 assert.equal(request.headers.get('x-mendje-country'),null,'Client cannot forge logged country');
+assert.notEqual(request.headers.get('x-nonce'), 'forged');
+assert.ok(request.headers.get('Content-Security-Policy').includes(`'nonce-${request.headers.get('x-nonce')}'`));
+assert.equal(request.headers.get('Content-Security-Policy-Report-Only'), null);
+assert.equal(request.headers.get('X-Frame-Options'), 'DENY');
+assert.equal(request.headers.get('Cache-Control'), 'private, no-store');
+const staticHeaders = await readFile('dist/client/_headers', 'utf8');
+assert.ok(staticHeaders.includes('X-Content-Type-Options: nosniff'));
+assert.ok(staticHeaders.includes('max-age=31536000, immutable'));
 async function inspect(directory) {
   for (const item of await readdir(directory, { withFileTypes: true })) {
     const path = directory + '/' + item.name;
