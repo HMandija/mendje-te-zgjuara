@@ -4,7 +4,7 @@ import {ThemeProvider} from 'next-themes';
 import {MotionConfig} from 'framer-motion';
 import {Toaster} from './ui/sonner';
 import {Howl,Howler} from 'howler';
-type Sound='click'|'cheer'|'page'|'react'|'correct'|'wrong'|'complete'|'pick'|'drop'|'move'|'turn'|'bump';
+export type Sound='click'|'cheer'|'page'|'react'|'correct'|'wrong'|'complete'|'pick'|'drop'|'move'|'turn'|'bump'|'maze'|'robot'|'sketch'|'story'|'tangram'|'color'|'event'|'sort'|'memory'|'lesson'|'level'|'pipe';
 type Experience={muted:boolean;toggleMute:()=>void;play:(sound:Sound)=>void;celebrate:()=>void};
 const ExperienceContext=createContext<Experience>({muted:true,toggleMute:()=>{},play:()=>{},celebrate:()=>{}});
 export const useExperience=()=>useContext(ExperienceContext);
@@ -24,7 +24,7 @@ export function ExperienceProvider({children,nonce}:{children:ReactNode;nonce?:s
  const toggleMute=useCallback(()=>{mute.current=!mute.current;setMuted(mute.current);Howler.mute(mute.current);try{localStorage.setItem('mendje-sound',mute.current?'off':'on');}catch{}if(mute.current){Object.values(sounds.current).forEach(sound=>sound?.stop());rewardUntil.current=0;}else play('click');},[play]);
  useEffect(()=>{
   // Bubble after component handlers so a game cue replaces the generic click.
-  const click=(event:MouseEvent)=>{if(!(event.target instanceof Element))return;const control=event.target.closest('button,a[href],[role="button"],[role="option"]');if(!control||control.closest('[data-sound="none"]')||control.matches(':disabled,[aria-disabled="true"]'))return;play('click');};
+  const click=(event:MouseEvent)=>{if(!(event.target instanceof Element))return;const control=event.target.closest('button,a[href],[role="button"],[role="option"]');if(!control||control.closest('[data-sound="none"]')||control.matches(':disabled,[aria-disabled="true"]'))return;const cue=control.getAttribute('data-sound');if(cue){if(['click','cheer','page','react','correct','wrong','complete','pick','drop','move','turn','bump','maze','robot','sketch','story','tangram','color','event','sort','memory','lesson','level','pipe'].includes(cue))play(cue as Sound);return;}if(performance.now()-lastCue.current.time<100)return;play('click');};
   const change=(event:Event)=>{if(event.target instanceof HTMLSelectElement||event.target instanceof HTMLInputElement&&['checkbox','radio'].includes(event.target.type))play('click');};
   const hide=()=>{if(document.visibilityState==='hidden'){Howler.mute(true);Object.values(sounds.current).forEach(s=>s?.stop());}};
   document.addEventListener('click',click);document.addEventListener('change',change);document.addEventListener('visibilitychange',hide);
