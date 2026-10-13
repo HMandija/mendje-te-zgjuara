@@ -1,3 +1,4 @@
+import {importRoster} from './roster-import';
 import {recordAccess} from "./admin-server";
 import {guardedPictureLogin} from './picture-login-guard';
 import {reserveMixed} from './mixed-pack.mjs';
@@ -11,7 +12,7 @@ import {curriculumLesson} from './curriculum-catalog.mjs';
 const name=z.string().trim().min(1).max(30);
 const picture=z.string().refine(x=>pictureIds.includes(x as typeof pictureIds[number]));
 export const rosterInput=z.discriminatedUnion('action',[
- z.object({action:z.literal('add'),class:identifier,names:z.array(name).min(1).max(100)}).strict(),
+ z.object({action:z.literal('add'),class:identifier,names:z.array(name).min(1).max(100),requestId:z.string().uuid().optional()}).strict(),
  z.object({action:z.literal('rename'),class:identifier,profile:identifier,name}).strict(),
  z.object({action:z.literal('picture'),class:identifier,profile:identifier,picture:picture.optional()}).strict(),
  z.object({action:z.literal('remove'),class:identifier,profile:identifier}).strict(),
@@ -53,18 +54,7 @@ export async function rosterAction(actor:Actor,x:z.infer<typeof rosterInput>){
   await db().batch([db().prepare('INSERT INTO classroom_settings(class,archived) VALUES(?,?) ON CONFLICT(class) DO UPDATE SET archived=excluded.archived').bind(c.id,x.action==='archive'?1:0),db().prepare('DELETE FROM picture_sessions WHERE class=?').bind(c.id)]);return json({saved:true});
  }
  const archived=await db().prepare('SELECT archived FROM classroom_settings WHERE class=?').bind(c.id).first<{archived:number}>();if(archived?.archived)throw new ApiError(400,'Rikthe klasën përpara ndryshimeve.');
- if(x.action==='add'){
-  const members=await db().prepare('SELECT COUNT(*) n FROM class_students WHERE class=?').bind(c.id).first<{n:number}>();if((members?.n||0)+x.names.length>100)throw new ApiError(400,'Një klasë mbështet deri në 100 nxënës.');
-  const students=x.names.map(name=>({id:crypto.randomUUID(),name,grade:c.grade}));
-  const w=await workspace(actor.owner);if(w.profiles.length+students.length>2000)throw new ApiError(400,'Hapësira mbështet deri në 2000 nxënës.');
-  await db().prepare('INSERT OR IGNORE INTO workspaces(owner,payload,revision) VALUES(?,?,0)').bind(actor.owner,JSON.stringify({profiles:[],custom:[]})).run();
-  const guard="EXISTS(SELECT 1 FROM workspaces w,json_each(w.payload,'$.profiles') p WHERE w.owner=? AND w.revision=? AND json_extract(p.value,'$.id')=?)";
-  const results=await db().batch([db().prepare('UPDATE workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=?').bind(JSON.stringify({profiles:[...w.profiles,...students],custom:w.custom}),actor.owner,w.revision),...students.flatMap(p=>[
-   db().prepare('INSERT INTO class_students(class,profile) SELECT ?,? WHERE '+guard).bind(c.id,p.id,actor.owner,w.revision+1,p.id),
-   db().prepare('INSERT INTO picture_logins(class,profile,picture) SELECT ?,?,? WHERE '+guard).bind(c.id,p.id,randomPicture(),actor.owner,w.revision+1,p.id),
-  ])]);if(!results[0].meta.changes)throw new ApiError(409,'Lista ndryshoi në një pajisje tjetër. Provo përsëri.');
-  return json({added:students.length});
- }
+ if(x.action==='add')return json(await importRoster(actor.owner,c,x.names,x.requestId||crypto.randomUUID(),randomPicture));
  const m=await db().prepare('SELECT profile FROM class_students WHERE class=? AND profile=?').bind(c.id,x.profile).first();if(!m)throw new ApiError(404,'Nxënësi nuk u gjet në këtë klasë.');
  if(x.action==='rename')await changeProfiles(actor,p=>p.map(p=>p.id===x.profile?{...p,name:x.name}:p));
  if(x.action==='picture'){const old=await db().prepare('SELECT picture FROM picture_logins WHERE class=? AND profile=?').bind(c.id,x.profile).first<{picture:string}>();await db().batch([db().prepare('INSERT INTO picture_logins(class,profile,picture) VALUES(?,?,?) ON CONFLICT(class,profile) DO UPDATE SET picture=excluded.picture').bind(c.id,x.profile,x.picture||randomPicture(old?.picture)),db().prepare('DELETE FROM picture_sessions WHERE class=? AND profile=?').bind(c.id,x.profile)]);}
