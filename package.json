@@ -12,7 +12,7 @@
     "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "typecheck": "tsc --noEmit --incremental false",
-    "test": "node check-puzzles.mjs && node check-server.mjs && node check-security.mjs && node check-product.mjs && node check-theme.mjs && node check-visual.mjs && node check-interactive.mjs && node check-game-progress.mjs && node check-robot.mjs && node check-demo.mjs && node check-expanded-curriculum.mjs && node check-creative.mjs && node check-mixed-pack.mjs && node check-admin.mjs && node check-student-session.mjs && node check-session-revocation.mjs && node check-picture-login-guard.mjs && node check-browser-security.mjs && node check-roster-import.mjs && node check-email-errors.mjs && node check-teacher-preview.mjs",
+    "test": "node check-puzzles.mjs && node check-server.mjs && node check-security.mjs && node check-product.mjs && node check-theme.mjs && node check-visual.mjs && node check-interactive.mjs && node check-game-progress.mjs && node check-robot.mjs && node check-demo.mjs && node check-expanded-curriculum.mjs && node check-creative.mjs && node check-mixed-pack.mjs && node check-admin.mjs && node check-student-session.mjs && node check-session-revocation.mjs && node check-picture-login-guard.mjs && node check-browser-security.mjs && node check-roster-import.mjs && node check-email-errors.mjs && node check-teacher-preview.mjs && node check-admin-accounts.mjs",
     "test:api": "node check-api.mjs",
     "test:product:api": "node check-product-api.mjs",
     "db:generate": "drizzle-kit generate",

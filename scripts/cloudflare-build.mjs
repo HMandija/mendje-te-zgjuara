@@ -14,6 +14,9 @@ await writeFile('.cloudflare/wrangler.json', JSON.stringify({
   compatibility_date: '2026-05-15',
   compatibility_flags: ['nodejs_compat'],
   workers_dev: true,
+  // Dashboard secrets stay encrypted; keep dashboard non-secret variables too.
+  keep_vars: true,
+  secrets: { required: ['SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY','ADMIN_EMAIL','SUPABASE_SECRET_KEY'] },
   d1_databases: [{ binding: 'DB', database_name: 'mendje-school', database_id: id,
     migrations_dir: '../drizzle' }],
 }, null, 2));

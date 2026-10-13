@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 const config = JSON.parse(await readFile('dist/server/wrangler.json', 'utf8'));
 assert.equal(config.name, 'mendje-te-zgjuara');
+assert.equal(config.keep_vars,true,'Preserve dashboard configuration during deploy');
+assert.deepEqual(config.secrets?.required,['SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY','ADMIN_EMAIL','SUPABASE_SECRET_KEY'],'Missing admin server secret must fail deployment');
 assert.equal(config.d1_databases.length, 1);
 assert.equal(config.d1_databases[0].database_name, 'mendje-school');
 assert.equal(config.d1_databases[0].binding, 'DB');

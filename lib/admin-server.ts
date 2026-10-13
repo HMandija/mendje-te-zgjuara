@@ -9,7 +9,8 @@ function random(){return [...crypto.getRandomValues(new Uint8Array(32))].map(b=>
 function setCookie(r:Request,name:string,value:string,seconds:number){return `${name}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${seconds}${new URL(r.url).protocol==='https:'?'; Secure':''}`;}
 type User={id?:string;email?:string;email_confirmed_at?:string};
 function checkedUser(value:unknown){const u=value as User;if(!u?.id||!u.email_confirmed_at||u.email?.toLowerCase()!==adminEmail())throw new ApiError(401,'Hyrja e administratorit nuk u krye.');return u.id;}
-export async function recordAccess(r:Request,principal:string,kind:string){
+export async function recordAccess(r:Request,principal:string,kind:string,email?:string){
+ if(email)await rememberAccountEmail(principal,email);
  await db().prepare('INSERT INTO access_events(id,principal,kind,created,ip,country) VALUES(?,?,?,?,?,?)').bind(crypto.randomUUID(),principal,kind,Date.now(),r.headers.get('cf-connecting-ip')?.slice(0,45)||'E panjohur',r.headers.get('x-mendje-country')?.slice(0,2)||'XX').run();
  await db().prepare('DELETE FROM access_events WHERE id IN (SELECT id FROM access_events WHERE created<? LIMIT 100)').bind(Date.now()-30*86400000).run();
 }
@@ -52,13 +53,98 @@ export async function verifyAdmin(r:Request,code:string){
  const consumed=await db().prepare('DELETE FROM admin_challenges WHERE hash=? AND expires>? RETURNING user').bind(h,Date.now()).first();if(!consumed)throw new ApiError(401,'Kodi është përdorur.');
  const previous=cookie(r,SESSION);if(previous)await db().prepare('DELETE FROM admin_sessions WHERE hash=?').bind(await hash(previous)).run();
  const seconds=Math.min(1800,Math.max(1,Number(verified.expires_in)||1800));
- const session=random();const saved=await db().prepare("INSERT INTO admin_sessions(hash,user,expires,email,provider_hash) SELECT ?,?,?,?,? WHERE EXISTS (SELECT 1 FROM accounts WHERE user=? AND enabled=1 AND role IN ('TEACHER','ADMIN')) RETURNING user").bind(await hash(session),row.user,Date.now()+seconds*1000,adminEmail(),await hash(provider),'supabase:'+row.user).first();if(!saved)throw new ApiError(401,'Llogaria nuk është aktive.');await recordAccess(r,'supabase:'+row.user,'ADMIN');
+ const session=random();const saved=await db().prepare("INSERT INTO admin_sessions(hash,user,expires,email,provider_hash) SELECT ?,?,?,?,? WHERE EXISTS (SELECT 1 FROM accounts WHERE user=? AND enabled=1 AND role IN ('TEACHER','ADMIN')) RETURNING user").bind(await hash(session),row.user,Date.now()+seconds*1000,adminEmail(),await hash(provider),'supabase:'+row.user).first();if(!saved)throw new ApiError(401,'Llogaria nuk është aktive.');await recordAccess(r,'supabase:'+row.user,'ADMIN',adminEmail());
  const headers=new Headers({'Cache-Control':'no-store'});headers.append('Set-Cookie',setCookie(r,SESSION,session,seconds));headers.append('Set-Cookie',setCookie(r,PROVIDER,provider,seconds));headers.append('Set-Cookie',setCookie(r,CHALLENGE,'',0));return Response.json({authenticated:true},{headers});
 }
 export async function logoutAdmin(r:Request){for(const name of [SESSION,CHALLENGE]){const token=cookie(r,name);if(token)await db().prepare(`DELETE FROM ${name===SESSION?'admin_sessions':'admin_challenges'} WHERE hash=?`).bind(await hash(token)).run();}const provider=authCookieToken(r,PROVIDER);if(provider)await revokeProviderSession(provider);const headers=new Headers({'Cache-Control':'no-store'});for(const name of [SESSION,CHALLENGE,PROVIDER])headers.append('Set-Cookie',setCookie(r,name,'',0));return Response.json({loggedOut:true},{headers});}
-export async function adminUsers(page:number){
- const e=env as unknown as Record<string,string>;if(!e.SUPABASE_SECRET_KEY)throw new ApiError(503,'Lista e llogarive kërkon secret-in SUPABASE_SECRET_KEY në server.');
- const response=await fetch(e.SUPABASE_URL+`/auth/v1/admin/users?page=${page}&per_page=50`,{headers:{apikey:e.SUPABASE_SECRET_KEY,Authorization:'Bearer '+e.SUPABASE_SECRET_KEY},signal:AbortSignal.timeout(12000)});if(!response.ok)throw new ApiError(503,'Lista e përdoruesve nuk u lexua. Kontrollo konfigurimin Supabase.');
- const result=await response.json() as {users?:Array<{id:string;email?:string;created_at?:string;last_sign_in_at?:string;email_confirmed_at?:string}>};
- return json({page,users:(result.users||[]).map(u=>({id:u.id,email:u.email||'',created:u.created_at,lastLogin:u.last_sign_in_at,confirmed:!!u.email_confirmed_at}))});
+
+type ProviderUser={id:string;email?:string;created_at?:string;last_sign_in_at?:string;email_confirmed_at?:string;banned_until?:string};
+function adminConfig(){
+ const e=env as unknown as Record<string,string>;
+ if(!e.SUPABASE_SECRET_KEY)throw new ApiError(503,'Administrimi i llogarive kërkon SUPABASE_SECRET_KEY me Type = Secret në Cloudflare. Ruajeni me Deploy.');
+ if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(e.SUPABASE_URL||''))throw new ApiError(503,'Konfigurimi i Supabase kërkon kontroll.');
+ return {url:e.SUPABASE_URL,key:e.SUPABASE_SECRET_KEY};
+}
+async function providerAdmin(path:string,method='GET',body?:unknown,timeoutMs=12000):Promise<Record<string,unknown>>{
+ const {url,key}=adminConfig();let response:Response;
+ try{response=await fetch(url+'/auth/v1/admin/'+path,{method,headers:{apikey:key,Authorization:'Bearer '+key,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(timeoutMs)});}
+ catch{throw new ApiError(503,'Supabase nuk u përgjigj. Provo përsëri pas pak.');}
+ let payload:Record<string,unknown>;
+ try{const result=await response.json();if(!result||typeof result!=='object'||Array.isArray(result))throw Error();payload=result as Record<string,unknown>;}
+ catch{throw new ApiError(503,'Supabase dha një përgjigje të papritur.');}
+ if(!response.ok){
+  const code=payload.code||payload.error_code;
+  if(response.status===404)throw new ApiError(404,'Llogaria nuk u gjet.');
+  if(code==='email_exists'||code==='user_already_exists'||response.status===409)throw new ApiError(409,'Ky email ka tashmë një llogari.');
+  if(code==='weak_password')throw new ApiError(400,'Zgjidh një fjalëkalim më të fortë me të paktën 12 karaktere.');
+  if(response.status===429)throw new ApiError(429,'Shumë kërkesa. Prit pak dhe provo përsëri.');
+  // Never echo provider details: they may contain credentials or personal data.
+  throw new ApiError(503,'Administrimi në Supabase dështoi. Kontrollo çelësin Secret të projektit në Cloudflare.');
+ }
+ return payload;
+}
+function providerUser(value:unknown):ProviderUser{
+ const u=value as ProviderUser;
+ if(!u||typeof u.id!=='string'||u.id.length>100||u.email!==undefined&&typeof u.email!=='string')throw new ApiError(503,'Të dhënat e llogarisë nuk u lexuan.');
+ return u;
+}
+function projectUser(u:ProviderUser,enabled=true,actor?:string){
+ return {id:u.id,email:u.email||'',created:u.created_at,lastLogin:u.last_sign_in_at,confirmed:!!u.email_confirmed_at,
+  blocked:!enabled||!!u.banned_until&&Date.parse(u.banned_until)>Date.now(),protected:u.id===actor||u.email?.toLowerCase()===adminEmail()};
+}
+export async function rememberAccountEmail(user:string,email:string){
+ if(!user.startsWith('supabase:')||email.length>254||!email.includes('@'))return;
+ await db().prepare('INSERT INTO account_contacts(user,email,updated) VALUES(?,?,?) ON CONFLICT(user) DO UPDATE SET email=excluded.email,updated=excluded.updated').bind(user,email.toLowerCase(),Date.now()).run();
+}
+export async function adminAccountEmails(owners:string[]):Promise<Map<string,string>>{
+ const unique=[...new Set(owners.filter(Boolean))].slice(0,50),emails=new Map<string,string>();if(!unique.length)return emails;
+ const rows=await db().prepare(`SELECT user,email FROM account_contacts WHERE user IN (${unique.map(()=>'?').join(',')})`).bind(...unique).all<{user:string;email:string}>();
+ for(const row of rows.results)emails.set(row.user,row.email);
+ const missing=unique.filter(user=>!emails.has(user)&&/^supabase:[0-9a-f-]{36}$/i.test(user));
+ if(!(env as unknown as Record<string,string>).SUPABASE_SECRET_KEY)return emails;
+ // Resolve only unique identities on this page, at most four requests at a time.
+ const deadline=Date.now()+8000;
+ for(let i=0;i<missing.length&&Date.now()<deadline;i+=4)await Promise.all(missing.slice(i,i+4).map(async owner=>{
+  try{const u=providerUser(await providerAdmin('users/'+owner.slice(9),'GET',undefined,Math.max(1,deadline-Date.now())));if(owner!=='supabase:'+u.id||!u.email)return;await rememberAccountEmail(owner,u.email);emails.set(owner,u.email.toLowerCase());}
+  catch{/* Deleted accounts and provider outages must not hide access history. */}
+ }));
+ return emails;
+}
+export async function adminUsers(page:number,actor?:string){
+ const result=await providerAdmin(`users?page=${page}&per_page=50`);
+ if(!Array.isArray(result.users))throw new ApiError(503,'Lista e përdoruesve nuk u lexua.');
+ const users=result.users.slice(0,50).map(providerUser),owners=users.map(u=>'supabase:'+u.id);
+ const rows=owners.length?await db().prepare(`SELECT user,enabled FROM accounts WHERE user IN (${owners.map(()=>'?').join(',')})`).bind(...owners).all<{user:string;enabled:number}>():{results:[]};
+ const disabled=new Set(rows.results.filter(r=>!r.enabled).map(r=>r.user));
+ const contacts=users.filter(u=>u.email).map(u=>db().prepare('INSERT INTO account_contacts(user,email,updated) VALUES(?,?,?) ON CONFLICT(user) DO UPDATE SET email=excluded.email,updated=excluded.updated').bind('supabase:'+u.id,u.email!.toLowerCase(),Date.now()));
+ if(contacts.length)await db().batch(contacts);
+ return json({page,users:users.map(u=>projectUser(u,!disabled.has('supabase:'+u.id),actor))});
+}
+export async function changeAdminAccount(actor:string,id:string,action:'block'|'unblock'){
+ const u=providerUser(await providerAdmin('users/'+id));if(u.id!==id)throw new ApiError(503,'Llogaria nuk përputhet me kërkesën.');
+ if(id===actor||u.email?.toLowerCase()===adminEmail())throw new ApiError(400,'Llogaria e administratorit nuk mund të bllokohet nga ky panel.');
+ const owner='supabase:'+id;
+ if(action==='unblock')await providerAdmin('users/'+id,'PUT',{ban_duration:'none'});
+ // D1 is the authoritative indefinite block. The existing trigger revokes all
+ // teacher/admin/picture sessions and invitation links, including current tokens.
+ await db().batch([
+  db().prepare("INSERT INTO accounts(user,role,enabled) VALUES(?,'TEACHER',?) ON CONFLICT(user) DO UPDATE SET enabled=excluded.enabled").bind(owner,action==='block'?0:1),
+  db().prepare('INSERT INTO admin_account_actions(id,actor,target,action,created) VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),actor,owner,action,Date.now()),
+ ]);
+ let providerSynced=true;
+ if(action==='block')try{await providerAdmin('users/'+id,'PUT',{ban_duration:'876000h'});}catch{providerSynced=false;}
+ return json({saved:true,blocked:action==='block',message:action==='block'?(providerSynced?'Llogaria u bllokua pa afat. Sesionet e mëparshme u mbyllën.':'Llogaria është bllokuar në aplikacion dhe sesionet u mbyllën. Sinkronizimi me Supabase dështoi; përsërit bllokimin pas pak.'):'Llogaria u zhbllokua. Përdoruesi duhet të hyjë përsëri.'});
+}
+export async function createAdminAccount(actor:string,email:string,password:string,redirect:string){
+ const u=providerUser(await providerAdmin('users','POST',{email,password,email_confirm:false}));
+ if(u.email?.toLowerCase()!==email.toLowerCase())throw new ApiError(503,'Krijimi i llogarisë kërkon kontroll.');
+ const owner='supabase:'+u.id;
+ await db().batch([
+  db().prepare("INSERT OR IGNORE INTO accounts(user,role,enabled) VALUES(?,'TEACHER',1)").bind(owner),
+  db().prepare('INSERT INTO account_contacts(user,email,updated) VALUES(?,?,?) ON CONFLICT(user) DO UPDATE SET email=excluded.email,updated=excluded.updated').bind(owner,u.email.toLowerCase(),Date.now()),
+  db().prepare('INSERT INTO admin_account_actions(id,actor,target,action,created) VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),actor,owner,'create',Date.now()),
+ ]);
+ let confirmationSent=true;
+ try{await authCall('resend?redirect_to='+encodeURIComponent(redirect),'POST',{type:'signup',email:u.email});}catch{confirmationSent=false;}
+ return json({saved:true,user:projectUser(u),confirmationSent,message:confirmationSent?'Llogaria u krijua. U dërgua email-i i konfirmimit; përdoruesi konfirmon email-in para hyrjes.':'Llogaria u krijua, por email-i i konfirmimit nuk u dërgua. Mos e krijo përsëri; ridërgo konfirmimin nga Supabase.'},201);
 }
