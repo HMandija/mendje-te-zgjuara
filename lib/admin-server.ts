@@ -60,14 +60,18 @@ export async function logoutAdmin(r:Request){for(const name of [SESSION,CHALLENG
 
 type ProviderUser={id:string;email?:string;created_at?:string;last_sign_in_at?:string;email_confirmed_at?:string;banned_until?:string};
 function adminConfig(){
- const e=env as unknown as Record<string,string>;
- if(!e.SUPABASE_SECRET_KEY)throw new ApiError(503,'Administrimi i llogarive kërkon SUPABASE_SECRET_KEY me Type = Secret në Cloudflare. Ruajeni me Deploy.');
+ const e=env as unknown as Record<string,string>,key=e.SUPABASE_SECRET_KEY?.trim();
+ if(!key)throw new ApiError(503,'Administrimi i llogarive kërkon SUPABASE_SECRET_KEY me Type = Secret në Cloudflare. Ruajeni me Deploy.');
+ if(!key.startsWith('sb_secret_')&&!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(key))throw new ApiError(503,'Vlera e SUPABASE_SECRET_KEY nuk ka formatin e një çelësi Secret të Supabase. Kopjo çelësin nga Settings → API Keys të këtij projekti.');
  if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(e.SUPABASE_URL||''))throw new ApiError(503,'Konfigurimi i Supabase kërkon kontroll.');
- return {url:e.SUPABASE_URL,key:e.SUPABASE_SECRET_KEY};
+ return {url:e.SUPABASE_URL,key};
 }
 async function providerAdmin(path:string,method='GET',body?:unknown,timeoutMs=12000):Promise<Record<string,unknown>>{
  const {url,key}=adminConfig();let response:Response;
- try{response=await fetch(url+'/auth/v1/admin/'+path,{method,headers:{apikey:key,Authorization:'Bearer '+key,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(timeoutMs)});}
+ // Modern secret keys are opaque API keys, not JWTs. Only legacy service_role
+ // JWTs also belong in Authorization; the gateway handles modern apikey auth.
+ const headers={apikey:key,'Content-Type':'application/json',...(!key.startsWith('sb_secret_')?{Authorization:'Bearer '+key}:{})};
+ try{response=await fetch(url+'/auth/v1/admin/'+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(timeoutMs)});}
  catch{throw new ApiError(503,'Supabase nuk u përgjigj. Provo përsëri pas pak.');}
  let payload:Record<string,unknown>;
  try{const result=await response.json();if(!result||typeof result!=='object'||Array.isArray(result))throw Error();payload=result as Record<string,unknown>;}
@@ -78,8 +82,9 @@ async function providerAdmin(path:string,method='GET',body?:unknown,timeoutMs=12
   if(code==='email_exists'||code==='user_already_exists'||response.status===409)throw new ApiError(409,'Ky email ka tashmë një llogari.');
   if(code==='weak_password')throw new ApiError(400,'Zgjidh një fjalëkalim më të fortë me të paktën 12 karaktere.');
   if(response.status===429)throw new ApiError(429,'Shumë kërkesa. Prit pak dhe provo përsëri.');
+  if(response.status===401||response.status===403)throw new ApiError(503,'Supabase refuzoi çelësin e administrimit. Kontrollo që SUPABASE_SECRET_KEY është çelësi Secret i këtij projekti, jo çelësi Publishable.',undefined,'supabase_admin_key_rejected');
   // Never echo provider details: they may contain credentials or personal data.
-  throw new ApiError(503,'Administrimi në Supabase dështoi. Kontrollo çelësin Secret të projektit në Cloudflare.');
+  throw new ApiError(503,'Administrimi në Supabase është përkohësisht i padisponueshëm. Provo përsëri pas pak.');
  }
  return payload;
 }

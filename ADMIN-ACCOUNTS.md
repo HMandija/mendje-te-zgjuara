@@ -2,6 +2,8 @@
 
 The standalone production Worker requires `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `ADMIN_EMAIL`, and `SUPABASE_SECRET_KEY`. Configure these directly in Cloudflare as encrypted Secret bindings. No values belong in the repository. The generated Wrangler configuration declares their names and refuses deployment if a required secret is missing.
 
+Modern `sb_secret_…` values authenticate through the `apikey` header only. They are opaque keys and must not be sent as bearer JWTs. Legacy JWT service-role keys use both `apikey` and `Authorization`. The server trims surrounding whitespace and rejects publishable keys or invalid formats before sending an admin request.
+
 Only a password-and-email-code verified admin session can list accounts, create teachers, or change account status. POST/PATCH also enforce same-origin requests, strict schemas, and per-admin limits. The admin cannot block their own identity or the configured admin email.
 
 Blocking sets the app account to disabled without an expiry. Existing D1 triggers revoke teacher/admin/picture sessions and invitations immediately. Supabase is also given a 100-year ban; the app's local block remains indefinite even if that provider call fails. Explicit unblocking clears the provider ban before enabling the app account. Previous sessions stay revoked. Classes and pupil progress are preserved.

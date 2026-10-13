@@ -9,7 +9,7 @@ class ApiError extends Error{constructor(status,message){super(message);this.sta
 const actor='11111111-1111-4111-8111-111111111111',target='22222222-2222-4222-8222-222222222222',newId='33333333-3333-4333-8333-333333333333';
 const users=new Map([[actor,{id:actor,email:'admin@example.test',email_confirmed_at:'now'}],[target,{id:target,email:'teacher@example.test',email_confirmed_at:'now',encrypted_password:'must-not-leak',access_token:'must-not-leak',user_metadata:{private:'must-not-leak'}}]]);
 let deliveryFails=false,banFails=false,authorized=true,providerCalls=0,creationCalls=0;
-globalThis.__adminAccounts={env:{ADMIN_EMAIL:'admin@example.test',SUPABASE_URL:'https://fixture.supabase.co',SUPABASE_SECRET_KEY:'fixture-server-key'},ApiError,z,
+globalThis.__adminAccounts={env:{ADMIN_EMAIL:'admin@example.test',SUPABASE_URL:'https://fixture.supabase.co',SUPABASE_SECRET_KEY:'sb_secret_fixture-server-key'},ApiError,z,
  db:()=>database,json:(body,status=200)=>Response.json(body,{status}),hash:async value=>Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))).toString('hex'),limit:async()=>{},authCookieToken:()=>null,revokeProviderSession:async()=>{},
  authCall:async(path,method,body)=>{assert(path.startsWith('resend?redirect_to='));assert.equal(method,'POST');assert.deepEqual(body,{email:'new@example.test',type:'signup'});if(deliveryFails)throw new ApiError(503,'Delivery failed');return {};},
  input:async(r,schema)=>schema.parse(await r.json()),requireOrigin:r=>{if(r.headers.get('origin')!=='https://school.test')throw new ApiError(403,'Origin');},
@@ -19,7 +19,7 @@ async function load(file,prelude){const source=prelude+'\n'+fs.readFileSync(file
 const admin=await load('lib/admin-server.ts','const {env,db,json,hash,ApiError,limit,authCall,authCookieToken,revokeProviderSession}=globalThis.__adminAccounts;');
 const originalFetch=globalThis.fetch;
 globalThis.fetch=async(url,options)=>{
- providerCalls++;assert.equal(new URL(url).origin,'https://fixture.supabase.co');assert.equal(options.headers.apikey,'fixture-server-key');assert.equal(options.headers.Authorization,'Bearer fixture-server-key');
+ providerCalls++;assert.equal(new URL(url).origin,'https://fixture.supabase.co');const expectedKey=globalThis.__adminAccounts.env.SUPABASE_SECRET_KEY.trim();assert.equal(options.headers.apikey,expectedKey);assert.equal(options.headers.Authorization,expectedKey.startsWith('sb_secret_')?undefined:'Bearer '+expectedKey);
  const path=new URL(url).pathname,body=options.body?JSON.parse(options.body):null;
  if(path.endsWith('/users')&&options.method==='GET')return Response.json({users:[...users.values()]});
  if(path.endsWith('/users')&&options.method==='POST'){creationCalls++;assert.equal(body.email_confirm,false);assert.equal(body.password,'fixture-password-123');if(users.has(newId))return Response.json({code:'email_exists',msg:'must-not-leak'},{status:422});const user={id:newId,email:body.email};users.set(newId,user);return Response.json(user);}
@@ -33,7 +33,7 @@ try{
  sql.prepare('INSERT INTO admin_sessions(hash,user,expires,email,provider_hash) VALUES(?,?,?,?,?)').run('old-admin',target,Date.now()+3600000,'teacher@example.test','provider');
  const before=providerCalls;await assert.rejects(admin.changeAdminAccount(actor,actor,'block'),e=>e.status===400);assert.equal(providerCalls,before+1);
  banFails=true;const blocked=await (await admin.changeAdminAccount(actor,target,'block')).json();assert.equal(blocked.blocked,true);assert.equal(sql.prepare('SELECT enabled FROM accounts WHERE user=?').get('supabase:'+target).enabled,0);assert.equal(sql.prepare('SELECT count(*) n FROM teacher_sessions').get().n,0);assert.equal(sql.prepare('SELECT count(*) n FROM admin_sessions').get().n,0);
- const listed=await (await admin.adminUsers(1,actor)).json();assert.equal(listed.users.find(u=>u.id===target).blocked,true);assert.equal(listed.users.find(u=>u.id===actor).protected,true);assert(!JSON.stringify(listed).includes('must-not-leak'));assert(!JSON.stringify(listed).includes('fixture-server-key'));
+ const listed=await (await admin.adminUsers(1,actor)).json();assert.equal(listed.users.find(u=>u.id===target).blocked,true);assert.equal(listed.users.find(u=>u.id===actor).protected,true);assert(!JSON.stringify(listed).includes('must-not-leak'));assert(!JSON.stringify(listed).includes('sb_secret_fixture-server-key'));
  await assert.rejects(admin.changeAdminAccount(actor,target,'unblock'),e=>e.status===503);assert.equal(sql.prepare('SELECT enabled FROM accounts WHERE user=?').get('supabase:'+target).enabled,0);
  banFails=false;await admin.changeAdminAccount(actor,target,'block');await admin.changeAdminAccount(actor,target,'unblock');assert.equal(sql.prepare('SELECT enabled FROM accounts WHERE user=?').get('supabase:'+target).enabled,1);assert.equal(sql.prepare('SELECT count(*) n FROM teacher_sessions').get().n,0);
  const callsBefore=providerCalls;const emails=await admin.adminAccountEmails(['supabase:'+target,'supabase:'+target]);assert.equal(emails.get('supabase:'+target),'teacher@example.test');assert.equal(providerCalls,callsBefore);
@@ -55,6 +55,9 @@ try{
  authorized=true;assert.equal((await api.PATCH(request('PATCH',{id:target,action:'block'},'https://evil.test'))).status,403);assert.equal((await api.PATCH(request('PATCH',{id:target,action:'block',role:'ADMIN'}))).status,400);assert.equal((await api.POST(request('POST',{email:'new@example.test',password:'short'}))).status,400);assert.equal(providerCalls,beforeDenied);assert.equal(creationCalls,1);
  const duplicate=await api.POST(request('POST',{email:'new@example.test',password:'fixture-password-123'}));assert.equal(duplicate.status,409);assert(!(await duplicate.text()).includes('must-not-leak'));
  users.delete(newId);deliveryFails=false;const successful=await api.POST(request('POST',{email:'new@example.test',password:'fixture-password-123'}));assert.equal(successful.status,201);const confirmation=await successful.json();assert.equal(confirmation.confirmationSent,true);assert.equal(confirmation.user.confirmed,false);
+ globalThis.__adminAccounts.env.SUPABASE_SECRET_KEY='eyJfixture.payload.signature';await admin.adminUsers(1);globalThis.__adminAccounts.env.SUPABASE_SECRET_KEY='  sb_secret_fixture-server-key  ';await admin.adminUsers(1);
+ const fixtureFetch=globalThis.fetch;globalThis.fetch=async()=>Response.json({message:'must-not-leak secret-provider-value'},{status:401});await assert.rejects(admin.adminUsers(1),e=>e.status===503&&e.message.includes('refuzoi')&&!e.message.includes('must-not-leak'));globalThis.fetch=fixtureFetch;
+ globalThis.__adminAccounts.env.SUPABASE_SECRET_KEY='sb_publishable_fixture';const beforeInvalid=providerCalls;await assert.rejects(admin.adminUsers(1),e=>e.status===503);assert.equal(providerCalls,beforeInvalid);
  delete globalThis.__adminAccounts.env.SUPABASE_SECRET_KEY;await assert.rejects(admin.adminUsers(1),e=>e.status===503);
 }finally{globalThis.fetch=originalFetch;delete globalThis.__adminAccounts;sql.close();}
 console.log('Admin accounts: private directory, durable block/provider failure, session revocation, protected admin, explicit unblock, cached historical email resolution, unconfirmed creation, delivery failure, CSRF/auth/input guards and no credential leaks passed. No real accounts or emails changed.');
