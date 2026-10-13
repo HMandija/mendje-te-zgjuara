@@ -2,6 +2,7 @@
 const TOKEN = 'mendje-student-session-v2';
 const CACHE = 'mendje-student-cache-v2';
 const OLD_PICTURE_TOKEN = 'mendje-picture-token';
+const LAST_ACTIVITY = 'mendje-student-last-activity-v1';
 const validToken = (value: string | null): value is string => !!value && /^[a-f0-9]{64}$/.test(value);
 
 export function purgeLegacyStudentStorage() {
@@ -28,6 +29,7 @@ export function startStudentSession(value: string) {
   if (sessionStorage.getItem(TOKEN) !== value) sessionStorage.removeItem(CACHE);
   sessionStorage.removeItem(OLD_PICTURE_TOKEN);
   sessionStorage.setItem(TOKEN, value);
+  sessionStorage.setItem(LAST_ACTIVITY, String(Date.now()));
 }
 
 export function getStudentToken(): string {
@@ -56,7 +58,7 @@ export function writeStudentCache(expectedToken: string, data: unknown): boolean
 }
 
 export function clearStudentSession() {
-  for (const key of [TOKEN, CACHE, OLD_PICTURE_TOKEN]) {
+  for (const key of [TOKEN, CACHE, OLD_PICTURE_TOKEN, LAST_ACTIVITY]) {
     try { sessionStorage.removeItem(key); } catch { /* Continue clearing remaining stores. */ }
   }
   purgeLegacyStudentStorage();

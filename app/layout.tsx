@@ -5,6 +5,7 @@ import './globals.css';
 import './play.css';
 import './learning-theme.css';
 import {ExperienceProvider} from '../components/experience-provider';
+import {SessionGuard} from '../components/session-guard';
 
 export const metadata: Metadata = {
   title: "Mendje të Zgjuara",
@@ -23,7 +24,7 @@ export default async function RootLayout({
   const nonce = (await headers()).get('x-nonce') || undefined;
   return (
     <html lang="sq" suppressHydrationWarning>
-      <body className="antialiased"><ExperienceProvider nonce={nonce}>{children}</ExperienceProvider></body>
+      <body className="antialiased"><ExperienceProvider nonce={nonce}><SessionGuard/>{children}</ExperienceProvider></body>
     </html>
   );
 }

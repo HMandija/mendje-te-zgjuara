@@ -116,7 +116,7 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
       if(method==='DOWNLOAD'&&response.ok){const blob=await response.blob();const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1]||'mendje.pdf';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return {} as T;}
       const result: unknown = await response.json();
       if(student && (leaving.current || token.current!==requestToken))throw Error('Hyrja ka ndryshuar.');
-      if(student && response.status===401){clearStudentSession();token.current='';leaving.current=true;location.href='/student';}
+      if(student && response.status===401){clearStudentSession();token.current='';leaving.current=true;location.replace('/student');}
       if (!response.ok) throw Object.assign(Error(result && typeof result === 'object' && 'error' in result ? String(result.error) : 'Kërkesa dështoi.'),{status:response.status});
       return result as T;
     } finally { clearTimeout(timer); }
@@ -234,7 +234,7 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
       const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),3000);
       try{await fetch('/api/class-login',{method:'DELETE',headers:{Authorization:'Bearer '+bearer},cache:'no-store',signal:controller.signal});}
       finally{clearTimeout(timer);}
-    },()=>{location.href='/student';});
+    },()=>{location.replace('/student');});
   }
   const item = adventure?.items[adventure.index];
   const answered = !!adventure && adventure.answers.length > adventure.index;

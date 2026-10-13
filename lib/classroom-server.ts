@@ -75,7 +75,7 @@ export async function loginPicture(r:Request,x:z.infer<typeof pictureInput>){
  if(!challenge)throw new ApiError(401,'Kodi ka skaduar. Vendose sërish.');
  const token=await guardedPictureLogin(challenge.class,x.profile,x.picture,await hash(x.challenge));await recordAccess(r,challenge.class+':'+x.profile,'STUDENT');return json({token});
 }
-export async function logoutPicture(r:Request){const raw=r.headers.get('authorization')||'';if(/^Bearer [a-f0-9]{64}$/.test(raw)){const h=await hash(raw.slice(7));await db().batch([db().prepare('DELETE FROM picture_sessions WHERE hash=?').bind(h),db().prepare('UPDATE invitations SET revoked=1 WHERE hash=?').bind(h)]);}return json({loggedOut:true});}
+export async function logoutPicture(r:Request){const raw=r.headers.get('authorization')||'';if(/^Bearer [a-f0-9]{64}$/.test(raw)){const h=await hash(raw.slice(7));await db().batch([db().prepare('DELETE FROM picture_sessions WHERE hash=?').bind(h),db().prepare('DELETE FROM student_sessions WHERE hash=?').bind(h),db().prepare('UPDATE invitations SET revoked=1 WHERE hash=?').bind(h)]);}return json({loggedOut:true});}
 export async function assignClasses(actor:Actor,x:z.infer<typeof bulkAssignmentInput>){
  const classes=await Promise.all(x.classes.map(id=>ownedClass(actor,id)));if(new Set(classes.map(c=>c.grade)).size!==1)throw new ApiError(400,'Detyrat e përbashkëta duhet të kenë të njëjtin vit shkollor.');
  const sourceGrade=x.task.lessonId?curriculumLesson(x.task.lessonId)?.grade:x.task.sourceGrade||classes[0].grade;

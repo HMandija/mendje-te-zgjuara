@@ -1,5 +1,6 @@
 import {db,hash} from './school-server';
 import {ApiError} from './school-access';
+import {IDLE_SESSION_MS} from './session-policy';
 type Attempt={failures:number;retry_at:number;locked:number;accepted:number};
 const WAIT=5*60_000;
 function blocked(row:Attempt,now:number):never {
@@ -31,7 +32,7 @@ export async function guardedPictureLogin(classId:string,profile:string,picture:
       RETURNING failures,retry_at,locked,accepted`).bind(picture,challengeHash,now,classId,profile,attempt,now+WAIT,now),
     db().prepare(`INSERT INTO picture_sessions(hash,class,profile,expires)
       SELECT ?,class,profile,? FROM picture_login_guard WHERE class=? AND profile=? AND attempt=? AND accepted=1`)
-      .bind(await hash(token),now+8*3600000,classId,profile,attempt),
+      .bind(await hash(token),now+IDLE_SESSION_MS,classId,profile,attempt),
     db().prepare(`DELETE FROM roster_challenges WHERE hash=? AND EXISTS (
       SELECT 1 FROM picture_login_guard WHERE class=? AND profile=? AND attempt=? AND accepted=1)`)
       .bind(challengeHash,classId,profile,attempt),

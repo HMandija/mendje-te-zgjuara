@@ -1,6 +1,7 @@
 import {env} from 'cloudflare:workers';
 import {ApiError} from './school-access';
 import {db,hash} from './school-server';
+import {IDLE_SESSION_MS} from './session-policy';
 export const EMAIL_COOKIE='mendje_teacher';
 function config(){const e=env as unknown as Record<string,string>;const url=e.SUPABASE_URL,key=e.SUPABASE_PUBLISHABLE_KEY;if(!url||!key)throw new ApiError(503,'Hyrja me email po përgatitet. Administratori duhet të aktivizojë Supabase.');if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url))throw new ApiError(503,'Konfigurimi i hyrjes kërkon kontroll.');return {url,key};}
 export function emailReady(){const e=env as unknown as Record<string,string>;return !!(e.SUPABASE_URL&&e.SUPABASE_PUBLISHABLE_KEY);}
@@ -35,10 +36,14 @@ export async function authCall(path:string,method:string,data?:unknown,token?:st
  return result;
 }
 export function authCookieToken(r:Request,name=EMAIL_COOKIE){const cookie=r.headers.get('cookie')?.split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='));if(!cookie)return null;const token=cookie.slice(name.length+1);return /^[A-Za-z0-9_.-]{20,8000}$/.test(token)?token:null;}
+export async function emailSessionPresent(r:Request){const token=authCookieToken(r);if(!token)return false;const row=await db().prepare("SELECT 1 AS active FROM teacher_sessions s JOIN accounts a ON a.user=s.user WHERE s.hash=? AND s.expires>? AND a.enabled=1 AND a.role='TEACHER'").bind(await hash(token),Date.now()).first();return !!row;}
 export async function emailIdentity(r:Request){
  const token=authCookieToken(r);if(!token)return null;
- const h=await hash(token),row=await db().prepare("SELECT s.user FROM teacher_sessions s JOIN accounts a ON a.user=s.user WHERE s.hash=? AND s.expires>? AND a.enabled=1 AND a.role='TEACHER'").bind(h,Date.now()).first<{user:string}>();
+ const now=Date.now(),h=await hash(token),row=await db().prepare("SELECT s.user FROM teacher_sessions s JOIN accounts a ON a.user=s.user WHERE s.hash=? AND s.expires>? AND a.enabled=1 AND a.role='TEACHER'").bind(h,now).first<{user:string}>();
  if(!row)throw new ApiError(401,'Sesioni përfundoi. Hyr sërish në llogari.');
+ // `expires` is a sliding 30-minute idle deadline. Touch it at most every
+ // five minutes to keep active sessions alive without writing on every API call.
+ await db().prepare('UPDATE teacher_sessions SET expires=? WHERE hash=? AND expires>? AND expires<?').bind(now+IDLE_SESSION_MS,h,now,now+IDLE_SESSION_MS-5*60_000).run();
  try{const u=await authCall('user','GET',undefined,token);if(typeof u.id!=='string'||!u.email_confirmed_at||row.user!=='supabase:'+u.id)throw new ApiError(401,'Hyr sërish në llogari.');return {id:row.user};}
  catch(error){if(error instanceof ApiError&&error.status===401)await db().prepare('DELETE FROM teacher_sessions WHERE hash=?').bind(h).run();throw error;}
 }
@@ -50,7 +55,7 @@ export async function createEmailSession(r:Request,result:Record<string,unknown>
  const seconds=Math.min(3600,Math.max(1,Number(result.expires_in)||3600));
  const previous=authCookieToken(r);
  if(previous)await db().prepare('DELETE FROM teacher_sessions WHERE hash=?').bind(await hash(previous)).run();
- const saved=await db().prepare("INSERT INTO teacher_sessions(hash,user,expires) SELECT ?,user,? FROM accounts WHERE user=? AND enabled=1 AND role='TEACHER' RETURNING user").bind(await hash(token),Date.now()+seconds*1000,owner).first();
+ const saved=await db().prepare("INSERT INTO teacher_sessions(hash,user,expires) SELECT ?,user,? FROM accounts WHERE user=? AND enabled=1 AND role='TEACHER' RETURNING user").bind(await hash(token),Date.now()+Math.min(seconds*1000,IDLE_SESSION_MS),owner).first();
  if(!saved)throw new ApiError(403,'Llogaria nuk është aktive.');
  await db().prepare('DELETE FROM teacher_sessions WHERE hash IN (SELECT hash FROM teacher_sessions WHERE expires<=? LIMIT 100)').bind(Date.now()).run();
  return sessionCookie(r,token,seconds);

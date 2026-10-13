@@ -16,8 +16,19 @@ export async function sessionRows(user:string,profile?:string){const stmt=profil
 export async function hash(value:string){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value));return [...new Uint8Array(bytes)].map(b=>b.toString(16).padStart(2,'0')).join('');}
 export async function student(r:Request){
  const raw=r.headers.get('authorization')||'';if(!/^Bearer [a-f0-9]{64}$/.test(raw))return null;const token=raw.slice(7);
- const picture=await db().prepare("SELECT c.owner,s.profile,s.expires,c.id AS classroom FROM picture_sessions s JOIN classes c ON c.id=s.class JOIN class_students m ON m.class=s.class AND m.profile=s.profile LEFT JOIN classroom_settings settings ON settings.class=c.id JOIN accounts a ON a.user=c.owner WHERE s.hash=? AND s.expires>? AND COALESCE(settings.archived,0)=0 AND a.enabled=1 AND a.role IN ('TEACHER','ADMIN')").bind(await hash(token),Date.now()).first<{owner:string;profile:string;expires:number;classroom:string}>();
- if(picture){const w=await workspace(picture.owner),profile=w.profiles.find(p=>p.id===picture.profile);return profile?{...picture,revoked:0,workspace:w,profileData:profile}:null;}
+ const now=Date.now(),tokenHash=await hash(token);
+ const picture=await db().prepare("SELECT c.owner,s.profile,s.expires,c.id AS classroom FROM picture_sessions s JOIN classes c ON c.id=s.class JOIN class_students m ON m.class=s.class AND m.profile=s.profile LEFT JOIN classroom_settings settings ON settings.class=c.id JOIN accounts a ON a.user=c.owner WHERE s.hash=? AND s.expires>? AND COALESCE(settings.archived,0)=0 AND a.enabled=1 AND a.role IN ('TEACHER','ADMIN')").bind(tokenHash,now).first<{owner:string;profile:string;expires:number;classroom:string}>();
+ if(picture){
+  // Extend active student sessions, writing at most once in each five-minute
+  // window. A missing request for 30 minutes leaves the token expired.
+  if(picture.expires<now+25*60_000)await db().prepare('UPDATE picture_sessions SET expires=? WHERE hash=? AND expires>? AND expires<?').bind(now+30*60_000,tokenHash,now,now+25*60_000).run();
+  const w=await workspace(picture.owner),profile=w.profiles.find(p=>p.id===picture.profile);return profile?{...picture,revoked:0,workspace:w,profileData:profile}:null;
+ }
+ const session=await db().prepare("SELECT s.owner,s.profile,s.expires FROM student_sessions s JOIN accounts a ON a.user=s.owner WHERE s.hash=? AND s.expires>? AND a.enabled=1 AND a.role IN ('TEACHER','ADMIN')").bind(tokenHash,now).first<{owner:string;profile:string;expires:number}>();
+ if(session){
+  if(session.expires<now+25*60_000)await db().prepare('UPDATE student_sessions SET expires=? WHERE hash=? AND expires>? AND expires<?').bind(now+30*60_000,tokenHash,now,now+25*60_000).run();
+  const w=await workspace(session.owner),profile=w.profiles.find(p=>p.id===session.profile);return profile?{...session,revoked:0,workspace:w,profileData:profile}:null;
+ }
  const invite=await db().prepare('SELECT owner,profile,expires,revoked FROM invitations WHERE hash=?').bind(await hash(token)).first<{owner:string,profile:string,expires:number,revoked:number}>();
  if(!invite||invite.revoked||invite.expires<=Date.now())return null;
  const account=await db().prepare('SELECT role,enabled FROM accounts WHERE user=?').bind(invite.owner).first<{role:string;enabled:number}>();

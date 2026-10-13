@@ -9,7 +9,7 @@ const database={prepare(query){let args=[];return {bind(...values){args=values;r
 const hash=async value=>Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))).toString('hex');
 class ApiError extends Error{constructor(status,message,retryAfter,code){super(message);Object.assign(this,{status,retryAfter,code});}}
 globalThis.__pictureGuard={db:()=>database,hash,ApiError,ZodError,json:(data,status)=>Response.json(data,{status})};
-async function load(file){const source='const {db,hash,ApiError,ZodError,json}=globalThis.__pictureGuard;\n'+fs.readFileSync(file,'utf8').replace(/^import .*;\r?\n/gm,'');return import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText).toString('base64'));}
+async function load(file){const source='const {db,hash,ApiError,ZodError,json}=globalThis.__pictureGuard;const IDLE_SESSION_MS=30*60_000;\n'+fs.readFileSync(file,'utf8').replace(/^import .*;\r?\n/gm,'');return import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText).toString('base64'));}
 const {guardedPictureLogin:login}=await load('lib/picture-login-guard.ts'),{route}=await load('lib/api-route.ts');
 const originalNow=Date.now;let now=originalNow();Date.now=()=>now;
 sql.exec("INSERT INTO accounts(user,role) VALUES('teacher','TEACHER'); INSERT INTO schools(id,owner,name) VALUES('school','teacher','Fixture');");
