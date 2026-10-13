@@ -5,7 +5,11 @@ export function PlayArt({asset,color,quantity=5,size,rotation=0}:{asset:string;c
  const eyes=<><circle cx="48" cy="58" r="3" fill="#273c49"/><circle cx="72" cy="58" r="3" fill="#273c49"/><path d="M54 69q6 7 12 0" stroke="#273c49" strokeWidth="3" fill="none" strokeLinecap="round"/></>;
  const leaves=<><path d="M60 35q-25-25-33-9 12 20 33 9" fill="#408259"/><path d="M61 33q7-27 28-24-1 21-28 24" fill="#68b978"/></>;
  const wheels=(positions:number[])=>positions.map((x,i)=><g key={i}><circle cx={x} cy="89" r="13" fill="#2e445c"/><circle cx={x} cy="89" r="7" fill="#bce4ed"/><circle cx={x} cy="89" r="2" fill="#607a97"/></g>);
- if(asset==='number')art=<><rect x="8" y="12" width="104" height="96" rx="24" fill="#ffe7a0"/><text x="60" y="78" textAnchor="middle" fontSize="46" fontWeight="800" fill="#273c49">{quantity}</text></>;
+ if(asset.startsWith('fleet-')){
+  const kind=asset.slice(6),count=Math.max(1,Math.min(6,quantity));
+  art=<>{Array.from({length:count},(_,i)=><g key={i} transform={`translate(${i%2*56+5} ${Math.floor(i/2)*36+3}) scale(.43)`}><path d={kind==='car'?'M12 47h76l16 23H5l7-23Z':kind==='unicycle'?'M49 14h22M60 14v43':'M18 55 42 28 72 55H18Zm24-27h27'} fill={kind==='car'?tone:'none'} stroke={tone} strokeWidth="8" strokeLinecap="round"/>{(kind==='unicycle'?[60]:kind==='bike'?[18,82]:kind==='tricycle'?[13,52,91]:[12,38,70,96]).map((x,k)=><g key={k}><circle cx={x} cy="73" r="11" fill="#2e445c"/><circle cx={x} cy="73" r="5" fill="#bce4ed"/></g>)}</g>)}</>;
+ }
+ else if(asset==='number')art=<><rect x="8" y="12" width="104" height="96" rx="24" fill="#ffe7a0"/><text x="60" y="78" textAnchor="middle" fontSize="46" fontWeight="800" fill="#273c49">{quantity}</text></>;
  else if(asset==='memory-grid')art=<>{Array.from({length:9},(_,i)=><rect key={i} x={12+i%3*34} y={12+Math.floor(i/3)*34} width="28" height="28" rx="7" fill={i===1?'#e8bb50':i===6?'#8f91d8':'#bfd4df'}/>)}<circle cx="26" cy="94" r="7" fill="#fff0d2"/></>;
  else if(asset==='pipes')art=<><rect x="10" y="10" width="100" height="100" rx="23" fill="#c1e2e3"/><path d="M0 36h36q18 0 18 18v12q0 18 18 18h48" stroke="#599aa8" strokeWidth="17" fill="none"/><circle cx="36" cy="36" r="12" fill="#7ac6d2"/></>;
  else if(asset==='maze')art=<><rect x="10" y="10" width="100" height="100" rx="20" fill="#c2dba7"/><path d="M30 10v45h25v35h35V35h20M10 80h20m50-70v20H55" stroke="#729575" strokeWidth="10" fill="none"/><circle cx="24" cy="25" r="7" fill="#e8bb50"/><circle cx="97" cy="96" r="8" fill="#ee806a"/></>;

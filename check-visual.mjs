@@ -19,7 +19,7 @@ for(const p of games){
  assert(!accepts(p,JSON.stringify(a.map(()=>a[0])))||a.length===1);
  assert(!accepts(p,JSON.stringify(['forged',...a.slice(1)])));assert(!accepts(p,'[]'));assert(!accepts(p,'malformed'));
  const safe=publicPuzzle(p);for(const key of ['answer','hint','explain'])assert(!(key in safe));assert.equal(safe.gameLevel,p.gameLevel);
- if(p.interaction.scene==='garden'||p.interaction.scene==='wheels')a.forEach((id,i)=>{const t=tokens.find(t=>t.id===id);assert.equal(value(p.interaction.targets[i].label),p.interaction.scene==='garden'?t.quantity:['a','b','c','d'].indexOf(id)+1);assert(!p.interaction.targets[i].label.includes('-'));});
+ if(p.interaction.scene==='garden'||p.interaction.scene==='wheels')a.forEach((id,i)=>{const t=tokens.find(t=>t.id===id);assert.equal(value(p.interaction.targets[i].label),p.interaction.scene==='garden'?t.quantity:t.quantity*(['a','b','c','d'].indexOf(id)+1));assert(!p.interaction.targets[i].label.includes('-'));});
  if(p.interaction.scene==='memory')assert.deepEqual(p.interaction.preview.map(t=>t.id),a);
  if(p.interaction.scene==='shadows')a.forEach((id,i)=>{const t=tokens.find(t=>t.id===id),s=p.interaction.targets[i];assert.equal(t.asset,s.cue);assert.equal(t.rotation,s.rotation);});
  if(p.interaction.scene==='patterns'){
