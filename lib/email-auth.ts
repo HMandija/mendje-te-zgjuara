@@ -4,7 +4,36 @@ import {db,hash} from './school-server';
 export const EMAIL_COOKIE='mendje_teacher';
 function config(){const e=env as unknown as Record<string,string>;const url=e.SUPABASE_URL,key=e.SUPABASE_PUBLISHABLE_KEY;if(!url||!key)throw new ApiError(503,'Hyrja me email po përgatitet. Administratori duhet të aktivizojë Supabase.');if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url))throw new ApiError(503,'Konfigurimi i hyrjes kërkon kontroll.');return {url,key};}
 export function emailReady(){const e=env as unknown as Record<string,string>;return !!(e.SUPABASE_URL&&e.SUPABASE_PUBLISHABLE_KEY);}
-export async function authCall(path:string,method:string,data?:unknown,token?:string){const {url,key}=config();const r=await fetch(url+'/auth/v1/'+path,{method,headers:{apikey:key,'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:data===undefined?undefined:JSON.stringify(data),signal:AbortSignal.timeout(12000)});const result=r.status===204?{}:await r.json() as Record<string,unknown>;if(!r.ok)throw new ApiError(r.status===429?429:r.status>=500?503:401,'Hyrja nuk u krye. Kontrollo email-in, fjalëkalimin dhe konfirmimin e email-it.');return result;}
+function providerError(status:number,result:Record<string,unknown>){
+ const code=typeof result.error_code==='string'?result.error_code:typeof result.code==='string'?result.code:'';
+ const known:Record<string,[number,string]>={
+  email_address_not_authorized:[503,'Email-i i konfirmimit nuk mund të dërgohet. Administratori duhet të konfigurojë shërbimin e email-it për regjistrime të reja.'],
+  over_email_send_rate_limit:[429,'Është arritur kufiri i dërgimit të email-eve. Prit pak përpara se të provosh përsëri.'],
+  over_request_rate_limit:[429,'Janë bërë shumë kërkesa. Prit pak dhe provo përsëri.'],
+  email_not_confirmed:[401,'Email-i nuk është konfirmuar ende. Kontrollo email-in dhe dosjen Spam. Nëse nuk ka mbërritur, kontakto administratorin.'],
+  invalid_credentials:[401,'Email-i ose fjalëkalimi nuk është i saktë. Nëse nuk ke llogari, zgjidh “Krijo një llogari”.'],
+  signup_disabled:[503,'Krijimi i llogarive të reja është përkohësisht i çaktivizuar.'],
+  email_provider_disabled:[503,'Regjistrimi me email është përkohësisht i çaktivizuar.'],
+  weak_password:[400,'Zgjidh një fjalëkalim më të fortë me të paktën 12 karaktere, shkronja, numra dhe simbole.'],
+  email_address_invalid:[400,'Kontrollo adresën e email-it dhe përdor një adresë të vlefshme.'],
+ };
+ if(Object.hasOwn(known,code)){const [http,message]=known[code];return new ApiError(http,message,undefined,code);}
+ // Inspect provider text only to classify delivery errors. Never send it to the
+ // browser or logs: it can contain addresses, SMTP credentials or other details.
+ const message=typeof result.msg==='string'?result.msg:typeof result.message==='string'?result.message:'';
+ if(status>=500&&/error sending (confirmation|recovery|magic link|otp) email/i.test(message))return new ApiError(503,'Shërbimi i email-it nuk arriti të dërgojë mesazhin. Administratori duhet të kontrollojë konfigurimin e dërgimit.',undefined,'email_delivery_failed');
+ return new ApiError(status===429?429:status>=500?503:401,status===429?'Janë bërë shumë kërkesa. Prit pak dhe provo përsëri.':status>=500?'Shërbimi i hyrjes është përkohësisht i padisponueshëm. Provo përsëri.':'Kërkesa e hyrjes nuk u pranua. Kontrollo të dhënat dhe provo përsëri.');
+}
+export async function authCall(path:string,method:string,data?:unknown,token?:string){
+ const {url,key}=config();let r:Response;
+ try{r=await fetch(url+'/auth/v1/'+path,{method,headers:{apikey:key,'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:data===undefined?undefined:JSON.stringify(data),signal:AbortSignal.timeout(12000)});}
+ catch{throw new ApiError(503,'Shërbimi i hyrjes nuk u përgjigj. Provo përsëri pas pak.');}
+ let result:Record<string,unknown>;
+ try{const payload=r.status===204?{}:await r.json();if(!payload||typeof payload!=='object'||Array.isArray(payload))throw Error('Invalid provider response');result=payload as Record<string,unknown>;}
+ catch{throw new ApiError(503,'Shërbimi i hyrjes dha një përgjigje të papritur. Provo përsëri pas pak.');}
+ if(!r.ok)throw providerError(r.status,result);
+ return result;
+}
 export function authCookieToken(r:Request,name=EMAIL_COOKIE){const cookie=r.headers.get('cookie')?.split(';').map(x=>x.trim()).find(x=>x.startsWith(name+'='));if(!cookie)return null;const token=cookie.slice(name.length+1);return /^[A-Za-z0-9_.-]{20,8000}$/.test(token)?token:null;}
 export async function emailIdentity(r:Request){
  const token=authCookieToken(r);if(!token)return null;
