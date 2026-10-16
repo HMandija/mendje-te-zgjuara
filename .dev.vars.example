@@ -1,0 +1,6 @@
+# Copy to .dev.vars. Fill privately; never commit the filled file.
+SUPABASE_URL=
+SUPABASE_PUBLISHABLE_KEY=
+ADMIN_EMAIL=
+# Server-only administrative key. Never use a NEXT_PUBLIC_ prefix.
+SUPABASE_SECRET_KEY=

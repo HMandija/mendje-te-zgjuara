@@ -15,9 +15,11 @@ The current Sites audience and deployment remain unchanged.
    and `CLOUDFLARE_D1_DATABASE_ID`. Store `CLOUDFLARE_API_TOKEN` as a secret.
    Use a scoped token with Workers Scripts edit and D1 edit for the intended account.
    Never paste tokens into chat, source code or command arguments.
-4. Set Worker runtime secrets `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`
-   through Cloudflare's dashboard. Use the existing project and public publishable
-   key; never use service_role. These values are deliberately absent from Git.
+4. Set Worker runtime secrets `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`,
+   `ADMIN_EMAIL` and `SUPABASE_SECRET_KEY` through Cloudflare's dashboard.
+   Use the existing project and its publishable key for normal login. The separate
+   secret key is server-only and is required for administrative account operations;
+   never expose it in browser code. These values are deliberately absent from Git.
    After the first deploy, configure them before inviting teachers.
 5. In Supabase Auth set the new HTTPS Site URL and allow the exact
    `https://<new-host>/teacher/login` redirect. Enable email confirmation and

@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {loadRobotRules} from './load-robot-world-rules.mjs';
+const r=await loadRobotRules(),{tokens}=JSON.parse(fs.readFileSync('.wrangler/robot-world-runtime-fixture.json','utf8')),base='http://127.0.0.1:8787';
+async function call(command,token=tokens[0]){for(let attempt=0;attempt<3;attempt++){await new Promise(resolve=>setTimeout(resolve,1500));try{const response=await fetch(base+'/api/robot-world',{method:command?'POST':'GET',headers:{Authorization:'Bearer '+token,...(command?{Origin:base,'Content-Type':'application/json'}:{})},body:command?JSON.stringify(command):undefined});if(response.status>=500||!response.headers.get('content-type')?.includes('application/json'))throw Error('Local proxy transport failed: '+response.status);return {status:response.status,body:await response.json()};}catch(e){if(attempt===2)throw e;}}throw Error('Unreachable');}
+const cmd=(action,data={})=>({id:crypto.randomUUID(),action,...data});let result=await call();assert.equal(result.status,200);assert.equal(r.unlockedWorld(result.body.state),48);assert.equal(result.body.state.robot.intelligence,1);
+result=await call(cmd('robot',{robot:{...result.body.state.robot,intelligence:5}}));assert.equal(result.body.state.robot.intelligence,1);
+for(const c of r.allWorldChallenges(1).slice(48,60)){const command=cmd('answer',{challenge:c.id,value:r.schoolSolution(c)});result=await call(command);assert.equal(result.status,200);assert(result.body.correct);assert.equal(result.body.earned,3);assert.equal((await call(command)).body.earned,0);}
+result=await call();assert.equal(r.completedWorld(result.body.state),60);assert.equal(result.body.state.robot.intelligence,5);assert(result.body.state.school.antenna);assert(result.body.state.school.graduated);const date=result.body.state.school.issuedAt;
+result=await call(cmd('robot',{robot:{...result.body.state.robot,intelligence:1,head:3}}));assert.equal(result.body.state.robot.intelligence,5);assert.equal(result.body.state.school.issuedAt,date);
+assert.equal((await call({...cmd('answer',{challenge:'school-4-3',value:'R'}),graduated:true})).status,400);assert.equal((await call(cmd('answer',{challenge:'school-1-1',value:'Rx3'}),tokens[1])).status,409);
+result=await call(undefined,tokens[1]);assert.equal(result.body.state.robot.intelligence,1);assert.equal(result.body.state.school.graduated,false);
+console.log('Real local Worker/D1 Phase D: 12 school challenges, idempotent rewards, intelligence/antenna/graduation persistence, safe robot edits, forged graduation and cross-pupil/chronological guards passed.');

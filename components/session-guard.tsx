@@ -24,7 +24,7 @@ export function SessionGuard(){
     let idleTimer=0,heartbeat=0;
     const path=()=>location.pathname;
     const isTeacherPage=()=>path()==='/teacher';
-    const isStudentPage=()=>path()==='/student/learn';
+    const isStudentPage=()=>path()==='/student/learn'||path()==='/student/robot-world';
     const activityKey=(role:Role)=>role==='TEACHER'?TEACHER_ACTIVITY:STUDENT_ACTIVITY;
     const readActivity=(role:Role)=>{
       try{const storage=role==='TEACHER'?localStorage:sessionStorage;const value=Number(storage.getItem(activityKey(role))||0);return Number.isFinite(value)?value:volatileActivity[role];}catch{return volatileActivity[role];}
@@ -77,13 +77,13 @@ export function SessionGuard(){
     const checkRoute=async()=>{
       if(checking||stopped)return;
       const current=path();
-      const publicLanding=current==='/',teacherLogin=current==='/teacher/login',studentLogin=current==='/student';
+      const publicLanding=current==='/',teacherLogin=current==='/teacher/login',studentLogin=current==='/student',worldPreview=current==='/robot-world'||current==='/robot-world/adventure';
       const teacherPage=isTeacherPage(),studentPage=isStudentPage();
-      if(!publicLanding&&!teacherLogin&&!studentLogin&&!teacherPage&&!studentPage){stopTimers();return;}
+      if(!publicLanding&&!teacherLogin&&!studentLogin&&!teacherPage&&!studentPage&&!worldPreview){stopTimers();return;}
       checking=true;
       try{
         let studentToken='';try{studentToken=getStudentToken();}catch{/* Teacher sessions do not depend on student storage. */}
-        const shouldCheckTeacher=publicLanding||teacherLogin||teacherPage;
+        const shouldCheckTeacher=publicLanding||teacherLogin||teacherPage||worldPreview;
         const teacherValid=shouldCheckTeacher?await sessionState('TEACHER'):false;
         if(stopped)return;
         if(teacherValid===null){if(teacherPage&&activeRole==='TEACHER')startActiveSession('TEACHER');return;}
@@ -93,12 +93,12 @@ export function SessionGuard(){
         }
         if(teacherPage){stopTimers();go('/teacher/login');return;}
 
-        const shouldCheckStudent=!!studentToken&&(publicLanding||studentLogin||studentPage);
+        const shouldCheckStudent=!!studentToken&&(publicLanding||studentLogin||studentPage||worldPreview);
         const studentValid=shouldCheckStudent?await sessionState('STUDENT',studentToken):false;
         if(stopped)return;
         if(studentValid===null){if(studentPage&&activeRole==='STUDENT')startActiveSession('STUDENT');return;}
         if(studentValid){
-          if(publicLanding||studentLogin){stopTimers();go('/student/learn');return;}
+          if(publicLanding||studentLogin||worldPreview&&current!=='/robot-world/adventure'){stopTimers();go(worldPreview?'/student/robot-world':'/student/learn');return;}
           startActiveSession('STUDENT');return;
         }
         if(studentToken)clearStudentSession();

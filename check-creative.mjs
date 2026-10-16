@@ -16,7 +16,7 @@ for(let grade=1;grade<=4;grade++)for(const lesson of creativeLessons(grade)){
  const safe=publicPuzzle(p);assert(!('answer' in safe));assert(!('hint' in safe));assert(!('explain' in safe));
  if(b.kind==='color'){assert(grade<=2);assert(new Set(b.cells.map(c=>c.symbol)).size>1);const bad=[...a];bad[0]=(bad[0]+1)%b.palette.length;assert(!assess(p,JSON.stringify(bad)).correct);assert(!accepts(p,JSON.stringify(a.map(()=>99))));}
  if(b.kind==='draw'){assert.deepEqual(drawTrace(b,a),b.target);assert(!accepts(p,JSON.stringify([{op:'forward',n:999}])));assert(!assess(p,JSON.stringify([{op:'right',n:1}])).correct);}
- if(b.kind==='events'){const bad=[...a];bad[0]=b.actions.find(x=>x.id!==a[0]).id;assert(!assess(p,JSON.stringify(bad)).correct);}
+ if(b.kind==='events'){const bad=[...a];bad[0]=b.actions.find(x=>x.id!==a[0]).id;assert(!assess(p,JSON.stringify(bad)).correct);assert.deepEqual(b.events.map(e=>e.trigger),['bear','rabbit','sun','bell','meet','night'].slice(0,b.events.length));assert(b.events.every(e=>e.label&&e.goal));}
  if(b.kind==='story'){const bad=[...a];bad[0]=b.story[0].options.find(x=>x.id!==a[0]).id;assert(!assess(p,JSON.stringify(bad)).correct);assert(b.story.every(s=>s.options.every(o=>/^o[0-2]$/.test(o.id))));}
  if(b.kind==='objects'){assert(!assess(p,JSON.stringify(a.map(()=>-1))).correct);if(a.length>1&&b.tokens[0].value===b.tokens[1].value){const swapped=[...a];[swapped[0],swapped[1]]=[swapped[1],swapped[0]];assert(assess(p,JSON.stringify(swapped)).correct);}}
  if(b.kind==='rules'){const bad=a.map(r=>[...r]);bad[0][0]=(bad[0][0]+1)%b.rounds[0].labels.length;assert(!assess(p,JSON.stringify(bad)).correct);if(grade===1)assert(b.rounds.every(r=>!r.rule.includes('tek')));}

@@ -26,7 +26,7 @@ export function purgeLegacyStudentStorage() {
 export function startStudentSession(value: string) {
   purgeLegacyStudentStorage();
   if (!validToken(value)) throw Error('Lidhja e hyrjes nuk është e vlefshme. Hyr me kodin e klasës.');
-  if (sessionStorage.getItem(TOKEN) !== value) sessionStorage.removeItem(CACHE);
+  if (sessionStorage.getItem(TOKEN) !== value) {sessionStorage.removeItem(CACHE);sessionStorage.removeItem('mendje-robot-world-v1');}
   sessionStorage.removeItem(OLD_PICTURE_TOKEN);
   sessionStorage.setItem(TOKEN, value);
   sessionStorage.setItem(LAST_ACTIVITY, String(Date.now()));
@@ -58,7 +58,7 @@ export function writeStudentCache(expectedToken: string, data: unknown): boolean
 }
 
 export function clearStudentSession() {
-  for (const key of [TOKEN, CACHE, OLD_PICTURE_TOKEN, LAST_ACTIVITY]) {
+  for (const key of [TOKEN, CACHE, OLD_PICTURE_TOKEN, LAST_ACTIVITY, 'mendje-robot-world-v1']) {
     try { sessionStorage.removeItem(key); } catch { /* Continue clearing remaining stores. */ }
   }
   purgeLegacyStudentStorage();

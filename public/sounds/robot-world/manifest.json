@@ -1,0 +1,68 @@
+{
+  "language": "sq",
+  "sampleRate": 22050,
+  "engine": "eSpeak NG (local build-time synthesis)",
+  "voices": [
+    {
+      "name": "I qetë",
+      "pitch": 43,
+      "range": 35,
+      "rate": 142
+    },
+    {
+      "name": "I gëzuar",
+      "pitch": 66,
+      "range": 65,
+      "rate": 156
+    },
+    {
+      "name": "Robotik",
+      "pitch": 30,
+      "range": 12,
+      "rate": 137
+    },
+    {
+      "name": "I butë",
+      "pitch": 57,
+      "range": 40,
+      "rate": 130
+    }
+  ],
+  "phrases": {
+    "dance": "Shiko lëvizjet në vijën e ritmit. Prek shigjetën e kërcimit, rrotullimin, përkuljen ose dorën për të përshëndetur. Ndërto vallëzimin dhe shtyp trekëndëshin. Përsërit grupin për një program të shkurtër!",
+    "dancelook": "Shiko robotin dhe figurat që ndizen. Kopjo radhën e lëvizjeve. Miqtë e tu janë në publik!",
+    "race": "Ndërto programin me shigjeta. Roboti mik ndjek rrugën e tij. Më pak komanda të bëjnë më të shpejtë. Gabimet nuk humbin yje. Provo përsëri!",
+    "raceif": "Kur ura është e lirë, kalo nga ajo. Kur është e prishur, merr rrugën tjetër. Provo të dyja pistat me të njëjtin program!",
+    "champion": "Bravo! Përfundove tre raundet e kampionatit. Medaljet dhe kupa të presin në dhomën e lojës. Çdo provë të mëson diçka të re!",
+    "schoolrepeat": "Mirë se erdhe në shkollë! Shto një shigjetë, zgjidh sa herë përsëritet dhe prek përsëritjen. Pastaj shtyp trekëndëshin. Një komandë mund të bëjë shumë hapa!",
+    "schoolquiz": "Shiko figurat dhe programin. Numëro hapat ose gjej vendin ku përfundon roboti. Prek përgjigjen. Mund të provosh përsëri!",
+    "schooldebug": "Roboti vepron gabim. Shiko provën me butonin e syve. Prek komandën që duhet ndrequr, pastaj shigjetën e re. Provo ndreqjen!",
+    "debuglook": "E pe ku shkoi roboti? Një komandë është ndryshe. Preke dhe zëvendësoje. Faleminderit që më ndreq!",
+    "schoolif": "Roboti shikon urën djathtas. Kur ura është e hapur, zgjidh rrugën me shenjën e saktë. Kur ura është e prishur, zgjidh rrugën tjetër. Shto hapat pas bashkimit dhe provo të dyja rrugët!",
+    "graduation": "Bravo! Roboti yt u diplomua! Mësove përsëritjen, logjikën, ndreqjen e gabimeve dhe kushtet. Sot mësuam diçka të re së bashku!",
+    "budget": "Numëro yjet në figurë. Shiko sa yje kushton një produkt. Sa produkte mund të blesh? Prek numrin.",
+    "shopping": "Shiko produktin dhe zgjidh raftin e tij: perime, fruta, pije, brumëra ose bulmet. Pastaj prek kontrollin.",
+    "recipe": "Ndërto recetën me figura. Prek hapat në radhën e duhur, pastaj shtyp trekëndëshin. Mund të provosh përsëri!",
+    "cooking": "Shiko raftet. Nëse mungojnë përbërësit, shko te dyqani. Rendit recetën, zgjidh një mik dhe shtyp trekëndëshin për të gatuar!",
+    "shop": "Gjithçka blihet vetëm me yje. Zgjidh ushqime, dekor ose aksesorë. Prek shenjën plus për të blerë. Ushqimet shkojnë në raftin e kuzhinës.",
+    "decor": "Zgjidh një dekor nga inventari, pastaj prek një vend të lirë. Mund edhe ta tërheqësh. Prek aksesorin për t’ia veshur robotit!",
+    "rescue": "Shpëto mikun! Prek shigjetat për të ndërtuar rrugën. Shmang gurët dhe pemët. Shtyp trekëndëshin që roboti të ecë.",
+    "bridge": "Uji nuk kalohet pa urë. Prek dërrasën për ta ndërtuar urën, pastaj shigjetën djathtas. Përsërite dhe shpëto mikun!",
+    "water": "Çoje robotin te lulja. Prek shigjetën e përkuljes, pastaj pikën e ujit. Ujiti të gjitha lulet!",
+    "gardenpattern": "Shiko lulet sipër, nga e majta në të djathtë. Mbill të njëjtat lule në të njëjtën radhë. Pastaj prek shenjën e kontrollit.",
+    "garden": "Kopshti yt po çel! Prek një lule dhe pastaj një vend të lirë për ta zhvendosur. Lulet e tua ruhen.",
+    "album": "Këta janë miqtë që shpëtove. Prek një kafshë për ta dëgjuar dhe për ta parë të vallëzojë!",
+    "hello": "Përshëndetje! Faleminderit që më ndërtove!",
+    "bravo": "Bravo! Një hap i ri për robotin!",
+    "again": "Provo përsëri! Je shumë afër.",
+    "hint": "Shiko figurën sipër. Provo me kujdes. Yjet e tu janë të sigurt.",
+    "shapes": "Gjej formën e njëjtë me figurën sipër.",
+    "count": "Numëro figurat sipër. Prek numrin e saktë.",
+    "predict": "Roboti ka vetëm një rrotë. A qëndron në ekuilibër? Zgjidh dhe shiko provën.",
+    "colors": "Gjej ngjyrën e njëjtë me figurën sipër.",
+    "pattern": "Shiko radhën e ngjyrave. Cila ngjyrë vjen më pas?",
+    "arrows": "Vendos shigjetat për te shtëpia. Shmang gurët. Shtyp butonin me trekëndësh për të ecur.",
+    "world": "Bravo! Roboti yt e ka një shtëpi. Hape hartën dhe eksploro botën!",
+    "privacy": "Për robotin zgjidh një emër imagjinar. Mos përdor emrin tënd të vërtetë."
+  }
+}

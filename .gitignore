@@ -36,3 +36,4 @@ service-account*.json
 .openai/
 .codex/
 .agents/
+!.dev.vars.example

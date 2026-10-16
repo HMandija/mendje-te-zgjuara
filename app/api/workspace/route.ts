@@ -22,6 +22,7 @@ export async function DELETE(r:Request){return route(async()=>{
  const results=await db().batch([
   db().prepare('UPDATE workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=?').bind(payload,actor.owner,x.revision),
   db().prepare('DELETE FROM invitations WHERE owner=? AND profile=? '+guard).bind(actor.owner,x.profile,actor.owner,x.profile),
+  db().prepare('DELETE FROM robot_worlds WHERE owner=? AND profile=? '+guard).bind(actor.owner,x.profile,actor.owner,x.profile),
   db().prepare('DELETE FROM sessions WHERE owner=? AND profile=? '+guard).bind(actor.owner,x.profile,actor.owner,x.profile),
   db().prepare('DELETE FROM adventures WHERE owner=? AND profile=? '+guard).bind(actor.owner,x.profile,actor.owner,x.profile),
   db().prepare('DELETE FROM class_students WHERE profile=? AND class IN (SELECT id FROM classes WHERE owner=?) '+guard).bind(x.profile,actor.owner,actor.owner,x.profile),
