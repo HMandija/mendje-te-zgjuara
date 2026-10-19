@@ -145,7 +145,8 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
       if (current.current.dirty) throw Error('Biblioteka duhet ruajtur përpara aventurës.');
       while (current.current.pending.length) {
         const pending=current.current.pending[0];
-        const result=await api<{stars:number}>(student ? '/api/student' : '/api/sessions', 'POST', pending);
+        const result=await api<{stars:number}>(student ? '/api/student' : '/api/sessions', 'POST', {id:pending.id,profile:pending.profile,grade:pending.grade,answers:pending.answers,date:pending.date,verified:pending.verified,level:pending.level,assignment:pending.assignment});
+        setSessions(previous=>previous.map(s=>s.id===pending.id?{...s,stars:result.stars}:s));
         setAdventure(previous=>previous?.id===pending.id?{...previous,stars:result.stars}:previous);
         current.current.pending.shift(); storeCache();
       }
@@ -265,7 +266,7 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
     try {
       await syncConfig();
       if (current.current.dirty) throw Error('Ruaj bibliotekën përpara aventurës.');
-      const issued = await api<{id:string;grade:number;profile:string;items:PublicPuzzle[];level?:number;assignment?:string}>('/api/adventures','POST',{grade,profile:active,category,count,level,assignment:assignment?.id,scene,gameLevel,lessonId,lessonLevel});
+      const issued = await api<{id:string;grade:number;profile:string;items:PublicPuzzle[];level?:number;assignment?:string}>('/api/adventures','POST',{grade,profile:active,category,count,level,assignment:assignment?.id,assignmentLevel:assignment?(assignment.lesson_level||assignment.game_level||assignment.level):undefined,scene,gameLevel,lessonId,lessonLevel});
       setAdventure({ ...issued, category, index:0, answers:[] });
       setHint(false); setHintStep(0); setMemoryVisible(true); setScreen('exercise'); window.scrollTo(0,0);
     } catch(error) {setStatus(message(error));}
@@ -298,7 +299,7 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
     if (adventure.index + 1 < adventure.items.length) {
       setAdventure({ ...adventure, index: adventure.index + 1, selected: undefined }); setHint(false); setHintStep(0); setMemoryVisible(true); return;
     }
-    const saved: SavedSession = { id: adventure.id, profile: adventure.profile, grade: adventure.grade, answers: adventure.answers, date: new Date().toISOString(), verified:true,level:adventure.level,assignment:adventure.assignment };
+    const saved: SavedSession = { id: adventure.id, profile: adventure.profile, grade: adventure.grade, answers: adventure.answers, date: new Date().toISOString(), verified:true,level:adventure.level,assignment:adventure.assignment,lessonId:adventure.lessonId,lessonLevel:adventure.lessonLevel,gameScene:adventure.scene,gameLevel:adventure.gameLevel };
     current.current.pending.push(saved); storeCache(); setSessions(prev => [...prev, saved]);
     setScreen('pause'); void flush();
   }

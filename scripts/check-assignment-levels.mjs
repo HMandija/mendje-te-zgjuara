@@ -1,0 +1,70 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import ts from 'typescript';
+import {DatabaseSync} from 'node:sqlite';
+import {z} from 'zod';
+import {identifier,gradeSchema,categories,startSchema} from '../lib/school-validation.mjs';
+import {curriculumLesson,curriculumLessons} from '../lib/curriculum-catalog.mjs';
+import {curriculumPuzzle} from '../lib/expanded-curriculum.mjs';
+import {catalogSeed} from '../lib/catalog-seed.mjs';
+import {reserveMixed,mixedPuzzles} from '../lib/mixed-pack.mjs';
+import {publicPuzzle,evaluateAnswer} from '../lib/security-policy.mjs';
+import {accepts,plugins} from '../lib/puzzle-engine.mjs';
+import {shuffle} from '../lib/puzzles.mjs';
+import {starScore} from '../lib/progress.mjs';
+
+const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');
+for(const f of fs.readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())sql.exec(fs.readFileSync('drizzle/'+f,'utf8'));
+const database={prepare(query){let values=[];return {bind(...args){values=args;return this;},async first(){return sql.prepare(query).get(...values)||null;},async all(){return {results:sql.prepare(query).all(...values)};},async run(){return {meta:{changes:sql.prepare(query).run(...values).changes}};}};},async batch(statements){sql.exec('BEGIN');try{const result=[];for(const s of statements)result.push(await s.run());sql.exec('COMMIT');return result;}catch(e){sql.exec('ROLLBACK');throw e;}}};
+class ApiError extends Error{constructor(status,message){super(message);this.status=status;}}
+const owner='assignment-test-owner',profile='test-student',classA='test-class-a',classB='test-class-b';
+const teacher={role:'TEACHER',owner,principal:'test-teacher'},student={role:'STUDENT',owner,principal:'test-pupil',profile,grade:1,classroom:classA};
+const workspace=async()=>({profiles:[{id:profile,name:'Test',grade:1}],custom:[]});
+globalThis.__assignmentTest={z,identifier,gradeSchema,categories,curriculumLesson,curriculumPuzzle,reserveMixed,mixedPuzzles,publicPuzzle,evaluateAnswer,accepts,plugins,shuffle,starScore,ApiError,pictureIds:['sun'],db:()=>database,workspace,json:(v)=>Response.json(v),limit:async()=>{},sessionRows:async()=>sql.prepare('SELECT id,profile,payload FROM sessions').all().map(s=>({...JSON.parse(s.payload),id:s.id,profile:s.profile})),seedCatalog:async()=>{}};
+async function load(file,names=''){const text=(names?`const {${names}}=globalThis.__assignmentTest;\n`:'')+fs.readFileSync(file,'utf8').replace(/^import .*;\r?\n/gm,'');return import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(text,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText).toString('base64'));}
+try{
+ const helpers=await load('lib/assignment-levels.ts');Object.assign(globalThis.__assignmentTest,helpers);
+ const product=await load('lib/product-server.ts','reserveMixed,z,db,workspace,json,sessionRows,ApiError,limit,identifier,gradeSchema,categories');Object.assign(globalThis.__assignmentTest,product);
+ const classroom=await load('lib/classroom-server.ts','reserveMixed,z,db,workspace,json,ApiError,limit,identifier,ownedClass,assignmentInput,pictureIds,curriculumLesson');
+ const adventure=await load('lib/adventure-server.ts','mixedPuzzles,db,json,workspace,ApiError,limit,seedCatalog,shuffle,publicPuzzle,evaluateAnswer,accepts,plugins,assignmentFor,starScore,curriculumPuzzle,curriculumLesson,assignmentLevels');
+ sql.prepare('INSERT INTO schools(id,owner,name) VALUES(?,?,?)').run('test-school',owner,'Test');
+ for(const id of [classA,classB])sql.prepare('INSERT INTO classes(id,school,owner,name,grade,code) VALUES(?,?,?,?,?,?)').run(id,'test-school',owner,id,1,id);
+ sql.prepare('INSERT INTO class_students(class,profile) VALUES(?,?)').run(classA,profile);
+ for(const p of catalogSeed().filter(p=>p.grade===1))sql.prepare('INSERT INTO puzzle_catalog(id,grade,category,payload) VALUES(?,?,?,?)').run(p.id,1,p.cat,JSON.stringify(p));
+ const lesson=curriculumLessons(1)[0],firstTen=Array.from({length:10},(_,i)=>i+1);
+ const base={title:'Test level selection',category:'mixed',level:1,count:5,due:'',lessonId:lesson.id,lessonLevel:1,allowedLevels:firstTen};
+ const assign=async(task=base,classes=[classA])=>(await (await classroom.assignClasses(teacher,classroom.bulkAssignmentInput.parse({classes,task}))).json()).ids;
+ const edit=async(id,task=base,actor=teacher)=>classroom.changeAssignment(actor,classroom.editAssignmentInput.parse({id,task}));
+ const start=(id,n,actor=student)=>adventure.startAdventure(actor,startSchema.parse({grade:1,profile,category:'mixed',count:5,assignment:id,...(n===undefined?{}:{assignmentLevel:n})}));
+ const deny=(fn,status)=>assert.rejects(fn,e=>e.status===status);
+ let [id,parallel]=await assign(base,[classA,classB]);
+ const stored=sql.prepare('SELECT * FROM assignments WHERE id=?').get(id);assert.deepEqual(helpers.assignmentLevels(stored),firstTen);assert.deepEqual(JSON.parse(sql.prepare('SELECT allowed_levels FROM assignments WHERE id=?').get(parallel).allowed_levels),firstTen);
+ assert.equal((await (await product.productData(student)).json()).assignments.length,1);
+ for(const n of firstTen){const result=await (await start(id,n)).json();assert.equal(result.lessonLevel,n);assert.equal(result.items[0].lessonId,lesson.id);assert.equal(result.items[0].lessonLevel,n);assert(!('answer' in result.items[0]));}
+ const count=sql.prepare('SELECT COUNT(*) n FROM adventures').get().n;
+ await deny(()=>start(id,11),403);await deny(()=>start(id,30),403);await deny(()=>start(parallel,1),404);await deny(()=>start(id,1,{...student,profile:'other'}),403);
+ assert.equal(sql.prepare('SELECT COUNT(*) n FROM adventures').get().n,count,'Locked or foreign levels must never issue an adventure');
+ await deny(()=>edit(id,base,{...teacher,owner:'other'}),404);
+ for(const allowedLevels of [[1,1],[0],[31],[1.5]])assert(!classroom.bulkAssignmentInput.safeParse({classes:[classA],task:{...base,allowedLevels}}).success);
+ assert(!classroom.bulkAssignmentInput.safeParse({classes:[classA],task:{...base,lessonId:undefined,lessonLevel:undefined,scene:'robot',gameLevel:1,allowedLevels:[21]}}).success);
+ assert(!classroom.bulkAssignmentInput.safeParse({classes:[classA],task:{...base,lessonId:undefined,lessonLevel:undefined,category:'math',allowedLevels:[4]}}).success);
+ assert(!startSchema.safeParse({grade:1,profile,category:'mixed',count:5,assignmentLevel:1}).success);
+ const completed=await (await start(id,1)).json(),pending=await (await start(id,2)).json();
+ const answer=curriculumPuzzle(lesson.id,1).answer;
+ await adventure.submitAnswer(student,{id:completed.id,index:0,value:answer});
+ await adventure.finishAdventure(student,{id:completed.id,grade:1,profile,answers:[{cat:'fake',question:'fake',correct:false}]});
+ const record=sql.prepare('SELECT * FROM sessions WHERE id=?').get(completed.id);assert.equal(JSON.parse(record.payload).lessonLevel,1);assert.equal(JSON.parse(record.payload).stars,3);
+ await edit(id,{...base,lessonLevel:10,allowedLevels:[30,10]});
+ assert.deepEqual(JSON.parse(sql.prepare('SELECT allowed_levels FROM assignments WHERE id=?').get(id).allowed_levels),[10,30]);
+ await deny(()=>start(id,1),403);await deny(()=>adventure.issued(student,pending.id),403);await deny(()=>adventure.submitAnswer(student,{id:pending.id,index:0,value:curriculumPuzzle(lesson.id,2).answer}),403);await deny(()=>adventure.puzzleHint(student,{id:pending.id,index:0}),403);
+ assert.equal((await (await start(id)).json()).lessonLevel,10,'Old clients default to the first currently enabled level');assert.equal((await (await start(id,30)).json()).lessonLevel,30);
+ assert.deepEqual(sql.prepare('SELECT * FROM sessions WHERE id=?').get(completed.id),record,'Toggling levels preserves answers and stars');
+ await edit(id,{...base,allowedLevels:[]});await deny(()=>start(id),403);assert.deepEqual(helpers.assignmentLevels(sql.prepare('SELECT * FROM assignments WHERE id=?').get(id)),[]);
+ await edit(id,{...base,allowedLevels:[1,2,11]});assert.equal((await (await start(id,11)).json()).lessonLevel,11);assert.equal((await (await start(id,1)).json()).lessonLevel,1);
+ assert.equal(helpers.assignmentLevelSessions(sql.prepare('SELECT * FROM assignments WHERE id=?').get(id),[{...JSON.parse(record.payload),id:completed.id,assignment:id},{...JSON.parse(record.payload),id:'else',assignment:'another'}],1).length,1,'Other assignments cannot complete this assignment');
+ const [legacy]=await assign({...base,lessonLevel:7,allowedLevels:undefined});assert.equal((await (await start(legacy)).json()).lessonLevel,7);await deny(()=>start(legacy,1),403);
+ const [game]=await assign({title:'Game',category:'mixed',level:1,count:5,due:'',scene:'robot',gameLevel:1,allowedLevels:[1,10,20]});assert.equal((await (await start(game,20)).json()).gameLevel,20);await deny(()=>start(game,2),403);
+ const [quiz]=await assign({title:'Quiz',category:'math',level:1,count:5,due:'',allowedLevels:[1,3]});assert.equal((await (await start(quiz,3)).json()).level,3);await deny(()=>start(quiz,2),403);
+ for(const invalid of ['bad','{}','[31]'])assert.deepEqual(helpers.assignmentLevels({...stored,allowed_levels:invalid}),[]);
+ console.log('Assignment levels: migrated SQLite persistence, parallel classes, levels 1–10 and 30, games/quiz ranges, arbitrary checkbox selections, legacy defaults, paused assignments, forged/foreign/disabled level denial (including in-flight answers and hints), unchanged completion stars and assignment-scoped progress passed.');
+}finally{sql.close();delete globalThis.__assignmentTest;}

@@ -10,8 +10,9 @@ import {assignmentFor} from './product-server';
 import {starScore} from './progress.mjs';
 import {curriculumPuzzle} from './expanded-curriculum.mjs';
 import {curriculumLesson} from './curriculum-catalog.mjs';
+import {assignmentLevels} from './assignment-levels';
 type Issued = {id:string;owner:string;profile:string;principal:string;grade:number;payload:string;expires:number;completed:number;level:number|null;assignment:string|null;started:number|null};
-type Started = {grade:number;profile:string;category:string;count:number;level?:number;assignment?:string;scene?:string;gameLevel?:number;lessonId?:string;lessonLevel?:number};
+type Started = {grade:number;profile:string;category:string;count:number;level?:number;assignment?:string;assignmentLevel?:number;scene?:string;gameLevel?:number;lessonId?:string;lessonLevel?:number};
 export async function startAdventure(actor:Actor,x:Started){
  if(actor.role==='STUDENT'&&(x.profile!==actor.profile||x.grade!==actor.grade))throw new ApiError(403,'Profili ose klasa nuk lejohet.');
  if(actor.classroom&&!x.assignment)throw new ApiError(403,'Zgjidh një nga detyrat që të ka caktuar mësuesi.');
@@ -20,8 +21,11 @@ export async function startAdventure(actor:Actor,x:Started){
  if(x.profile&&!w.profiles.some((p:{id:string})=>p.id===x.profile))throw new ApiError(404,'Profili nuk ekziston.');
  if(x.scene&&(x.level||x.assignment)||x.gameLevel&&(!x.scene||x.category!=='play'))throw new ApiError(400,'Niveli i lojës kërkon një lojë me figura pa detyrë kursi.');
  let mixed: Puzzle[]|null=null;let contentGrade=x.grade;
- if(x.assignment){const a=await assignmentFor(actor,x.assignment,x.profile,x.grade);contentGrade=a.source_grade||a.grade;if(a.mixed_items){await seedCatalog(db());const stored=await db().prepare('SELECT payload FROM puzzle_catalog WHERE grade=?').bind(contentGrade).all<{payload:string}>();mixed=mixedPuzzles(contentGrade,JSON.parse(a.mixed_items),stored.results.map(r=>JSON.parse(r.payload))) as Puzzle[];}x={...x,category:a.scene?'play':a.category,level:a.scene||a.lesson_id?undefined:a.level,count:a.scene||a.lesson_id?1:a.count,scene:a.scene||undefined,gameLevel:a.game_level||undefined,lessonId:a.lesson_id||undefined,lessonLevel:a.lesson_level||undefined};}
- if(mixed){const id=crypto.randomUUID();await db().prepare('INSERT INTO adventures(id,owner,profile,principal,grade,payload,expires,level,assignment,started) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(id,actor.owner,x.profile,actor.principal,x.grade,JSON.stringify(mixed),Date.now()+86400000,null,x.assignment||null,Date.now()).run();return json({id,grade:x.grade,profile:x.profile,assignment:x.assignment,items:mixed.map(publicPuzzle)});}
+ if(x.assignment){const a=await assignmentFor(actor,x.assignment,x.profile,x.grade),levels=assignmentLevels(a),selected=x.assignmentLevel??levels[0];
+  if(!levels.includes(selected))throw new ApiError(403,'Ky nivel nuk është aktivizuar nga mësuesi.');
+  contentGrade=a.source_grade||a.grade;if(a.mixed_items){await seedCatalog(db());const stored=await db().prepare('SELECT payload FROM puzzle_catalog WHERE grade=?').bind(contentGrade).all<{payload:string}>();mixed=mixedPuzzles(contentGrade,JSON.parse(a.mixed_items),stored.results.map(r=>JSON.parse(r.payload))) as Puzzle[];}
+  x={...x,category:a.scene?'play':a.category,level:a.scene||a.lesson_id?undefined:selected,count:a.scene||a.lesson_id?1:a.count,scene:a.scene||undefined,gameLevel:a.scene?selected:undefined,lessonId:a.lesson_id||undefined,lessonLevel:a.lesson_id?selected:undefined};}
+ if(mixed){const id=crypto.randomUUID();await db().prepare('INSERT INTO adventures(id,owner,profile,principal,grade,payload,expires,level,assignment,started) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(id,actor.owner,x.profile,actor.principal,x.grade,JSON.stringify(mixed),Date.now()+86400000,x.level||null,x.assignment||null,Date.now()).run();return json({id,grade:x.grade,profile:x.profile,level:x.level,assignment:x.assignment,items:mixed.map(publicPuzzle)});}
  if(x.lessonId){
   const lesson=curriculumLesson(x.lessonId);
   if(!lesson||lesson.grade!==contentGrade||!x.lessonLevel)throw new ApiError(400,'Mësimi nuk përputhet me klasën.');
@@ -50,7 +54,8 @@ export async function startAdventure(actor:Actor,x:Started){
 export async function issued(actor:Actor,id:string){
  const a=await db().prepare('SELECT * FROM adventures WHERE id=? AND owner=? AND principal=?').bind(id,actor.owner,actor.principal).first<Issued>();
  if(!a || actor.role==='STUDENT'&&a.profile!==actor.profile)throw new ApiError(404,'Aventura nuk u gjet.');
- if(actor.role==='STUDENT'&&a.assignment)await assignmentFor(actor,a.assignment,a.profile,a.grade);
+ if(actor.role==='STUDENT'&&a.assignment){const task=await assignmentFor(actor,a.assignment,a.profile,a.grade),p=(JSON.parse(a.payload) as Puzzle[])[0],selected=task.lesson_id?p?.lessonLevel:task.scene?p?.gameLevel:a.level||task.level;
+  if(!selected||!assignmentLevels(task).includes(selected))throw new ApiError(403,'Ky nivel nuk është aktivizuar nga mësuesi.');}
  if(a.expires<Date.now()&&!a.completed)throw new ApiError(410,'Aventura ka skaduar. Fillo një të re.');
  return {...a,items:JSON.parse(a.payload) as Puzzle[]};
 }

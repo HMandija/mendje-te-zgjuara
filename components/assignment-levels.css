@@ -1,0 +1,17 @@
+.assignment-level-picker{width:100%;min-width:0;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink)}
+.assignment-level-picker>summary{padding:14px;min-height:48px;cursor:pointer;line-height:1.5}
+.assignment-level-picker>summary>span{font-weight:700;margin-right:12px}.assignment-level-picker>summary>strong{font-size:14px;color:var(--muted)}
+.assignment-level-picker-content{padding:0 14px 14px}.assignment-level-picker-content p{font-size:14px;line-height:1.5}
+.assignment-level-picker-content fieldset{padding:0!important;border:0!important;min-width:0}.assignment-level-picker-content legend{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.assignment-level-tools{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.assignment-level-tools button{min-height:44px}
+.assignment-level-checkboxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.assignment-level-checkboxes label{display:flex!important;align-items:center;gap:9px;min-height:48px;padding:10px!important;border:1px solid var(--line);border-radius:9px;cursor:pointer;font-size:16px}
+.assignment-level-checkboxes label.is-enabled{background:var(--success-bg);border-color:var(--success-border);color:var(--success-text)}
+.assignment-level-checkboxes input[type=checkbox]{width:20px!important;height:20px!important;min-height:0;margin:0;accent-color:var(--accent);flex-shrink:0}
+.assignment-level-checkboxes label:focus-within,.assignment-level-picker>summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.assignment-card.assignment-with-levels{display:block}.assignment-card-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.assignment-with-levels .assignment-level-picker{margin:14px 0}
+.assignment-student-levels{display:grid;grid-template-columns:repeat(auto-fit,minmax(48px,1fr));gap:8px;margin:12px 0}.assignment-student-levels button{min-height:48px;padding:6px;display:grid;place-items:center;gap:2px}
+.assignment-student-levels small{font-size:11px}.assignment-student-levels button:disabled{cursor:not-allowed;opacity:.65}.assignment-student-levels .level-completed{border:2px solid var(--success-border)}
+.assignment-student-level-picker>summary{padding:10px 0;min-height:44px;cursor:pointer;font-size:16px;font-weight:700}.assignment-student-level-picker>summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.teacher-levels .level-locked{opacity:.55}.teacher-levels{max-width:100%;overflow-x:auto}
+@media(max-width:480px){.assignment-level-checkboxes{grid-template-columns:repeat(2,minmax(0,1fr))}.assignment-card-head{align-items:flex-start}}
