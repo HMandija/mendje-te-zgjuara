@@ -10,7 +10,7 @@ import {catalogSeed} from '../lib/catalog-seed.mjs';
 import {reserveMixed,mixedPuzzles} from '../lib/mixed-pack.mjs';
 import {publicPuzzle,evaluateAnswer} from '../lib/security-policy.mjs';
 import {accepts,plugins} from '../lib/puzzle-engine.mjs';
-import {shuffle} from '../lib/puzzles.mjs';
+import {shuffle,shufflePuzzleForIssue} from '../lib/puzzles.mjs';
 import {starScore} from '../lib/progress.mjs';
 
 const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys=ON');
@@ -20,13 +20,13 @@ class ApiError extends Error{constructor(status,message){super(message);this.sta
 const owner='assignment-test-owner',profile='test-student',classA='test-class-a',classB='test-class-b';
 const teacher={role:'TEACHER',owner,principal:'test-teacher'},student={role:'STUDENT',owner,principal:'test-pupil',profile,grade:1,classroom:classA};
 const workspace=async()=>({profiles:[{id:profile,name:'Test',grade:1}],custom:[]});
-globalThis.__assignmentTest={z,identifier,gradeSchema,categories,curriculumLesson,curriculumPuzzle,reserveMixed,mixedPuzzles,publicPuzzle,evaluateAnswer,accepts,plugins,shuffle,starScore,ApiError,pictureIds:['sun'],db:()=>database,workspace,json:(v)=>Response.json(v),limit:async()=>{},sessionRows:async()=>sql.prepare('SELECT id,profile,payload FROM sessions').all().map(s=>({...JSON.parse(s.payload),id:s.id,profile:s.profile})),seedCatalog:async()=>{}};
+globalThis.__assignmentTest={z,identifier,gradeSchema,categories,curriculumLesson,curriculumPuzzle,reserveMixed,mixedPuzzles,publicPuzzle,evaluateAnswer,accepts,plugins,shuffle,shufflePuzzleForIssue,starScore,ApiError,pictureIds:['sun'],db:()=>database,workspace,json:(v)=>Response.json(v),limit:async()=>{},sessionRows:async()=>sql.prepare('SELECT id,profile,payload FROM sessions').all().map(s=>({...JSON.parse(s.payload),id:s.id,profile:s.profile})),seedCatalog:async()=>{}};
 async function load(file,names=''){const text=(names?`const {${names}}=globalThis.__assignmentTest;\n`:'')+fs.readFileSync(file,'utf8').replace(/^import .*;\r?\n/gm,'');return import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(text,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText).toString('base64'));}
 try{
  const helpers=await load('lib/assignment-levels.ts');Object.assign(globalThis.__assignmentTest,helpers);
  const product=await load('lib/product-server.ts','reserveMixed,z,db,workspace,json,sessionRows,ApiError,limit,identifier,gradeSchema,categories');Object.assign(globalThis.__assignmentTest,product);
  const classroom=await load('lib/classroom-server.ts','reserveMixed,z,db,workspace,json,ApiError,limit,identifier,ownedClass,assignmentInput,pictureIds,curriculumLesson');
- const adventure=await load('lib/adventure-server.ts','mixedPuzzles,db,json,workspace,ApiError,limit,seedCatalog,shuffle,publicPuzzle,evaluateAnswer,accepts,plugins,assignmentFor,starScore,curriculumPuzzle,curriculumLesson,assignmentLevels');
+ const adventure=await load('lib/adventure-server.ts','mixedPuzzles,db,json,workspace,ApiError,limit,seedCatalog,shuffle,shufflePuzzleForIssue,publicPuzzle,evaluateAnswer,accepts,plugins,assignmentFor,starScore,curriculumPuzzle,curriculumLesson,assignmentLevels');
  sql.prepare('INSERT INTO schools(id,owner,name) VALUES(?,?,?)').run('test-school',owner,'Test');
  for(const id of [classA,classB])sql.prepare('INSERT INTO classes(id,school,owner,name,grade,code) VALUES(?,?,?,?,?,?)').run(id,'test-school',owner,id,1,id);
  sql.prepare('INSERT INTO class_students(class,profile) VALUES(?,?)').run(classA,profile);

@@ -1,8 +1,8 @@
 import type {CreativeBoard} from './creative-types';
 import type {PlayInteraction,PipeBoard} from './play-types';
 export type Profile = { id: string; name: string; grade: number };
-export type Puzzle = { id?: string; grade?: number; level?:number; gameLevel?:number; lessonId?:string; lessonLevel?:number; type?:'choice'|'ordering'|'grid'|'balance'|'number'|'boolean'|'pattern'|'odd'|'placement'|'pipes'|'maze'|'robot'|'creative'; interaction?:{creative?:CreativeBoard;items?:string[];cells?:string[];pipes?:PipeBoard['pipes'];start?:number;end?:number;goals?:number[];direction?:number;commands?:string[];grade?:number}&Partial<PlayInteraction>; cat: string; title: string; visual: string; options: string[]; answer: string; explain: string; hint: string; memory?: boolean };
-export type PublicPuzzle = Omit<Puzzle,'answer'|'explain'|'hint'> & {hint?:string;explain?:string};
+export type Puzzle = { id?: string; grade?: number; level?:number; gameLevel?:number; lessonId?:string; lessonLevel?:number; type?:'choice'|'ordering'|'grid'|'balance'|'number'|'boolean'|'pattern'|'odd'|'placement'|'pipes'|'maze'|'robot'|'creative'; interaction?:{creative?:CreativeBoard;items?:string[];cells?:string[];pipes?:PipeBoard['pipes'];start?:number;end?:number;goals?:number[];direction?:number;commands?:string[];grade?:number}&Partial<PlayInteraction>; cat: string; title: string; visual: string; options: string[]; answer: string; explain: string; hint: string; hint2?:string; memory?: boolean };
+export type PublicPuzzle = Omit<Puzzle,'answer'|'explain'|'hint'|'hint2'> & {hint?:string;explain?:string};
 export type Answer = { cat: string; correct: boolean; question: string; note?: string };
 export type SavedSession = { lessonId?:string;lessonLevel?:number;gameScene?:string;gameLevel?:number; id: string; profile: string; grade: number; answers: Answer[]; date?: string; verified?:boolean; level?:number; assignment?:string; duration?:number; stars?:number };
 export type Config = { profiles: Profile[]; custom: Puzzle[] };

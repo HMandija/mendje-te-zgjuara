@@ -8,7 +8,7 @@ import {visualPuzzles} from '../lib/visual-puzzles.mjs';
 import {interactivePuzzles} from '../lib/interactive-puzzles.mjs';
 import {scenarioSeeds} from '../lib/scenario-seeds.mjs';
 import {challengeFingerprint} from '../lib/curriculum-fingerprint.mjs';
-const all=()=>[...[1,2,3,4].flatMap(g=>curriculumLessons(g).flatMap(l=>Array.from({length:30},(_,i)=>curriculumPuzzle(l.id,i+1)))),...catalogSeed()];
+const all=()=>[...[1,2,3,4].flatMap(g=>curriculumLessons(g).flatMap(l=>Array.from({length:l.levels},(_,i)=>curriculumPuzzle(l.id,i+1)))),...catalogSeed()];
 function regenerate(p){
  if(p.lessonId&&['robot','pipes','maze'].includes(p.type))return curriculumPuzzle(p.lessonId,p.lessonLevel);
  if(p.id.startsWith('original-play-')&&p.interaction.scene==='path')return visualPuzzles().find(q=>q.id===p.id);

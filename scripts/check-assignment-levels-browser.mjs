@@ -57,7 +57,7 @@ try{
  // The original task form offers the same multi-select, including keyboard input.
  await card.getByRole('button',{name:'Ndrysho',exact:true}).click();const form=page.locator('form').filter({has:page.getByRole('heading',{name:'Ndrysho mësimin',exact:true})});
  await form.locator('.assignment-level-picker summary').click();assert.equal(await form.locator('.assignment-level-checkboxes input:checked').count(),10);
- const last=form.getByRole('checkbox',{name:'Niveli 30',exact:true});await last.focus();await page.keyboard.press('Space');assert(await last.isChecked());
+ const last=form.getByRole('checkbox',{name:'Niveli 20',exact:true});await last.focus();await page.keyboard.press('Space');assert(await last.isChecked());
  await form.getByRole('button',{name:'Ruaj ndryshimet',exact:true}).click();await page.getByRole('heading',{name:'Cakto një mësim të ri',exact:true}).waitFor();assert(JSON.parse(task.allowed_levels).includes(30));
  // Library assignment is no longer limited to the previewed level.
  await page.getByRole('button',{name:'Biblioteka e mësimeve',exact:true}).click();await page.getByLabel('Kërko një mësim').fill(lesson.title);await page.locator('.curriculum-card').first().click();

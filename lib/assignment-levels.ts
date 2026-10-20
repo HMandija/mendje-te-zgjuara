@@ -1,8 +1,12 @@
 import type {Assignment} from './product-types';
 import type {SavedSession} from './learning-types';
 
-export function assignmentLevelCount(task: Pick<Assignment,'lesson_id'|'scene'>) {
-  return task.lesson_id ? 30 : task.scene ? 20 : 3;
+export function assignmentLevelCount(task: Pick<Assignment,'lesson_id'|'scene'|'allowed_levels'|'lesson_level'>) {
+  if(!task.lesson_id)return task.scene ? 20 : 3;
+  const current=20;
+  let previouslyAssigned=current;
+  try{const levels=task.allowed_levels==null?[task.lesson_level]:JSON.parse(task.allowed_levels);if(Array.isArray(levels))previouslyAssigned=Math.max(current,...levels.filter((n):n is number=>Number.isInteger(n)&&n>=1&&n<=30));}catch{}
+  return previouslyAssigned;
 }
 
 // NULL preserves the single level of assignments created before level selection.

@@ -2,7 +2,7 @@ import {mixedPuzzles} from './mixed-pack.mjs';
 import {db,json,workspace} from './school-server';
 import {ApiError,limit,type Actor} from './school-access';
 import {seedCatalog} from './catalog-seed.mjs';
-import {shuffle} from './puzzles.mjs';
+import {shuffle,shufflePuzzleForIssue} from './puzzles.mjs';
 import {publicPuzzle,evaluateAnswer} from './security-policy.mjs';
 import type {Answer,Puzzle,SavedSession} from './learning-types';
 import {accepts,plugins} from './puzzle-engine.mjs';
@@ -25,7 +25,7 @@ export async function startAdventure(actor:Actor,x:Started){
   if(!levels.includes(selected))throw new ApiError(403,'Ky nivel nuk është aktivizuar nga mësuesi.');
   contentGrade=a.source_grade||a.grade;if(a.mixed_items){await seedCatalog(db());const stored=await db().prepare('SELECT payload FROM puzzle_catalog WHERE grade=?').bind(contentGrade).all<{payload:string}>();mixed=mixedPuzzles(contentGrade,JSON.parse(a.mixed_items),stored.results.map(r=>JSON.parse(r.payload))) as Puzzle[];}
   x={...x,category:a.scene?'play':a.category,level:a.scene||a.lesson_id?undefined:selected,count:a.scene||a.lesson_id?1:a.count,scene:a.scene||undefined,gameLevel:a.scene?selected:undefined,lessonId:a.lesson_id||undefined,lessonLevel:a.lesson_id?selected:undefined};}
- if(mixed){const id=crypto.randomUUID();await db().prepare('INSERT INTO adventures(id,owner,profile,principal,grade,payload,expires,level,assignment,started) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(id,actor.owner,x.profile,actor.principal,x.grade,JSON.stringify(mixed),Date.now()+86400000,x.level||null,x.assignment||null,Date.now()).run();return json({id,grade:x.grade,profile:x.profile,level:x.level,assignment:x.assignment,items:mixed.map(publicPuzzle)});}
+ if(mixed){mixed=mixed.map(shufflePuzzleForIssue);const id=crypto.randomUUID();await db().prepare('INSERT INTO adventures(id,owner,profile,principal,grade,payload,expires,level,assignment,started) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(id,actor.owner,x.profile,actor.principal,x.grade,JSON.stringify(mixed),Date.now()+86400000,x.level||null,x.assignment||null,Date.now()).run();return json({id,grade:x.grade,profile:x.profile,level:x.level,assignment:x.assignment,items:mixed.map(publicPuzzle)});}
  if(x.lessonId){
   const lesson=curriculumLesson(x.lessonId);
   if(!lesson||lesson.grade!==contentGrade||!x.lessonLevel)throw new ApiError(400,'Mësimi nuk përputhet me klasën.');
@@ -46,7 +46,7 @@ export async function startAdventure(actor:Actor,x:Started){
  if(x.scene&&x.category!=='play')throw new ApiError(400,'Lloji i lojës kërkon kategorinë e lojërave me figura.');
  const original=shuffle(pool.filter(p=>p.id?.startsWith('original-'))),other=shuffle(pool.filter(p=>!p.id?.startsWith('original-')));
  const visual=original.filter(p=>['placement','pipes','maze','robot'].includes(p.type||'')),classic=original.filter(p=>!['placement','pipes','maze','robot'].includes(p.type||''));
- const items=[...visual,...classic,...other].slice(0,x.count).map((p:Puzzle)=>({...p,...(p.type==='placement'?{interaction:{...p.interaction,tokens:shuffle(p.interaction!.tokens!)}}:{}),options:p.type==='ordering'||p.type==='grid'?p.options:shuffle(p.options)}));
+ const items=[...visual,...classic,...other].slice(0,x.count).map((p:Puzzle)=>shufflePuzzleForIssue(p));
  const id=crypto.randomUUID(),expires=Date.now()+24*60*60*1000;
  await db().prepare('INSERT INTO adventures(id,owner,profile,principal,grade,payload,expires,level,assignment,started) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(id,actor.owner,x.profile,actor.principal,x.grade,JSON.stringify(items),expires,x.level||null,x.assignment||null,Date.now()).run();
  return json({id,grade:x.grade,profile:x.profile,level:x.level,assignment:x.assignment,gameLevel:x.gameLevel,scene:x.scene,items:items.map(publicPuzzle)});
