@@ -22,8 +22,10 @@ The current Sites audience and deployment remain unchanged.
    never expose it in browser code. These values are deliberately absent from Git.
    After the first deploy, configure them before inviting teachers.
 5. In Supabase Auth set the new HTTPS Site URL and allow the exact
-   `https://<new-host>/teacher/login` redirect. Enable email confirmation and
-   production SMTP. Keep old redirects while the original app is still used.
+   `https://<new-host>/teacher/login` and
+   `https://<new-host>/teacher/reset-password` redirects. Enable email
+   confirmation and production SMTP. Keep old redirects while the original app
+   is still used.
 6. Push to `main` or run the workflow manually. Checks must pass before the
    append-only SQL schema migrations and Worker deployment run.
    Public URL is returned by Wrangler; use workers.dev initially.
