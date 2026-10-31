@@ -5,12 +5,13 @@ import {emailIdentity} from './email-auth';
 import {allowed} from './security-policy.mjs';
 export type Actor = {role:'STUDENT'|'TEACHER'|'ADMIN';owner:string;principal:string;profile?:string;grade?:number;classroom?:string};
 export class ApiError extends Error {constructor(public status:number,message:string,public retryAfter?:number,public code?:string){super(message);}}
+let lastSweep=0;
 export async function limit(key:string,max:number,windowMs=60_000){
  const now=Date.now(),bucket=Math.floor(now/windowMs),expires=(bucket+1)*windowMs;
  const row=await db().prepare('INSERT INTO rate_limits(key,count,expires) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1 RETURNING count').bind(await hash(key+':'+bucket),expires).first<{count:number}>();
  if(!row || row.count>max)throw new ApiError(429,'Shumë kërkesa. Prit pak dhe provo përsëri.');
  // Bounded cleanup of old counter buckets; no visitor identifiers are stored.
- await db().prepare('DELETE FROM rate_limits WHERE key IN (SELECT key FROM rate_limits WHERE expires<? LIMIT 100)').bind(now).run();
+ if(now-lastSweep>=30_000){lastSweep=now;await db().prepare('DELETE FROM rate_limits WHERE key IN (SELECT key FROM rate_limits WHERE expires<? LIMIT 100)').bind(now).run();}
 }
 export async function authorize(r:Request,permission:string):Promise<Actor>{
  await limit('auth-source:'+(r.headers.get('cf-connecting-ip')||'private-site'),900);

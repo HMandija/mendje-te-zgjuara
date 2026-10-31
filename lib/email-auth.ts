@@ -16,6 +16,9 @@ function providerError(status:number,result:Record<string,unknown>){
   signup_disabled:[503,'Krijimi i llogarive të reja është përkohësisht i çaktivizuar.'],
   email_provider_disabled:[503,'Regjistrimi me email është përkohësisht i çaktivizuar.'],
   weak_password:[400,'Zgjidh një fjalëkalim më të fortë me të paktën 12 karaktere, shkronja, numra dhe simbole.'],
+  same_password:[400,'Fjalëkalimi i ri duhet të jetë ndryshe nga ai i mëparshmi.'],
+  bad_jwt:[401,'Lidhja ka skaduar. Kërko një lidhje të re nga faqja e hyrjes.'],
+  session_not_found:[401,'Lidhja ka skaduar. Kërko një lidhje të re nga faqja e hyrjes.'],
   email_address_invalid:[400,'Kontrollo adresën e email-it dhe përdor një adresë të vlefshme.'],
  };
  if(Object.hasOwn(known,code)){const [http,message]=known[code];return new ApiError(http,message,undefined,code);}
