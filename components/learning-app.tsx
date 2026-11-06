@@ -116,18 +116,21 @@ export default function LearningApp({ student = false }: { student?: boolean }) 
     if (student) headers.Authorization = 'Bearer ' + token.current;
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 15000);
     try {
-      let response!: Response;
-      // Retry only transient failures (network error or an HTML error page from the platform). Answers are idempotent on the server, so a retry cannot count twice.
+      let response!: Response, parsed: unknown, readable = false;
+      // One careful retry for transient failures: network errors, HTML error pages, and empty or cut-off JSON bodies. Answers are idempotent on the server, so a retry cannot count twice. Only one retry, because an overloaded server must not receive triple the traffic.
       for (let attempt = 0; ; attempt++) {
         try {
           response = await fetch(path, { method:method==='DOWNLOAD'?'GET':method, headers, body: data === undefined ? undefined : JSON.stringify(data), cache: 'no-store', signal: controller.signal });
-          if ((response.headers.get('content-type') || '').includes('json') || (method==='DOWNLOAD'&&response.ok) || attempt >= 2) break;
-        } catch (error) { if (attempt >= 2 || controller.signal.aborted || leaving.current || !(error instanceof TypeError)) throw error; }
-        await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1200 * (attempt + 1)));
+          if (method==='DOWNLOAD'&&response.ok) break;
+          const raw = await response.text();
+          try { parsed = JSON.parse(raw); readable = (response.headers.get('content-type') || '').includes('json'); } catch { readable = false; }
+          if (readable || attempt >= 1) break;
+        } catch (error) { if (attempt >= 1 || controller.signal.aborted || leaving.current || !(error instanceof TypeError)) throw error; }
+        await new Promise(resolve => setTimeout(resolve, 700 + Math.random() * 1800));
       }
       if(method==='DOWNLOAD'&&response.ok){const blob=await response.blob();const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1]||'mendje.pdf';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return {} as T;}
-      if (!(response.headers.get('content-type') || '').includes('json')) throw Object.assign(Error('Serveri është i zënë për një çast. Provo përsëri pas pak.'), { status: response.status });
-      const result: unknown = await response.json();
+      if (!readable) throw Object.assign(Error('Serveri është i zënë për një çast. Provo përsëri pas pak.'), { status: response.status });
+      const result: unknown = parsed;
       if(student && (leaving.current || token.current!==requestToken))throw Error('Hyrja ka ndryshuar.');
       if(student && response.status===401){clearStudentSession();token.current='';leaving.current=true;location.replace('/student');}
       if (!response.ok) throw Object.assign(Error(result && typeof result === 'object' && 'error' in result ? String(result.error) : 'Kërkesa dështoi.'),{status:response.status});

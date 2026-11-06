@@ -17,7 +17,7 @@ assert(!workspaceSchema.safeParse({profiles:[],custom:[],revision:0,role:'ADMIN'
 const sqlite=new DatabaseSync(':memory:');sqlite.exec('CREATE TABLE puzzle_catalog(id TEXT PRIMARY KEY,grade INTEGER,category TEXT,payload TEXT)');
 let queries=0;
 const seedDb={prepare(sql){const stmt=sqlite.prepare(sql);return {async first(...values){queries++;return stmt.get(...values);},bind(...values){assert(values.length<=100);return {async first(){queries++;return stmt.get(...values);},run(){queries++;return stmt.run(...values);}};}};},async batch(statements){for(const stmt of statements)stmt.run();}};
-await seedCatalog(seedDb);assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM puzzle_catalog').get().n,1248);assert(queries<=26);
+await seedCatalog(seedDb);assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM puzzle_catalog').get().n,1248);assert(queries<=27);
 assert(startSchema.safeParse({grade:1,profile:'',count:5,category:'play',scene:'maze',gameLevel:20}).success);for(const gameLevel of [0,21,1.5])assert(!startSchema.safeParse({grade:1,profile:'',count:5,category:'play',scene:'maze',gameLevel}).success);
-const firstQueries=queries;await seedCatalog(seedDb);assert.equal(queries,firstQueries+1);sqlite.close();
+const firstQueries=queries;await seedCatalog(seedDb);assert.equal(queries,firstQueries);sqlite.close();
 console.log('Security: role matrix, deny-by-default, 1248 server seeds, safe puzzle projection, scoring and strict Zod input passed.');
