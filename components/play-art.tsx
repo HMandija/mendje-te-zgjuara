@@ -1,4 +1,5 @@
 import type {ReactNode} from 'react';
+import type {VisualBox} from '../lib/learning-types';
 const palette:Record<string,string>={coral:'#ee6d66',sky:'#58add4',gold:'#e6ae38',mint:'#62af7d',violet:'#9473d4'};
 export function PlayArt({asset,color,quantity=5,size,rotation=0}:{asset:string;color?:string;quantity?:number;size?:number;rotation?:number}){
  const tone=palette[color||'']||'#ee806a';let art:ReactNode;
@@ -44,4 +45,10 @@ const symbols:Record<string,string>={'⚽':'circle','🧊':'cube','🍎':'apple'
 export function IllustratedLine({text}:{text:string}){
  const parts=text.split(/(⚽|🧊|🍎|🟣|📘|✏️?|📦|🧸|🍐|📚|▲|△|■|●|○|◯|★|◆)/gu);
  return <span className="illustrated-line">{parts.map((part,i)=>symbols[part]?<span className="inline-art" key={i} role="img" aria-label={part}><PlayArt asset={symbols[part]}/></span>:<span key={i}>{part}</span>)}</span>;
+}
+// Concrete counting boxes (e.g. "Kutia me më shumë"): colored containers side by side,
+// items inside each box, so young kids see at a glance which items belong where.
+export function PuzzleVisual({text,boxes}:{text:string;boxes?:VisualBox[]}){
+ if(boxes?.length)return <span className="box-row" role="img" aria-label={text}>{boxes.map((b,i)=><span className={'box-item box-'+b.tint} key={i}><span className="box-label">{b.label}</span><span className="box-items"><IllustratedLine text={b.items.join('')}/></span></span>)}</span>;
+ return <IllustratedLine text={text}/>;
 }

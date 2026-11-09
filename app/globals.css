@@ -164,6 +164,37 @@ th { color: var(--muted); font-size: 12px; }
 .question-card .tiny { color: var(--muted); }
 .visual { min-height: 105px; margin: 24px 0; display: flex; align-items: center; justify-content: center; padding: 22px; text-align: center; border-radius: 18px; background: var(--surface-subtle); color: var(--accent); font-size: clamp(25px, 4vw, 39px); letter-spacing: 3px; white-space: pre-wrap; }
 .visual:empty { display: none; }
+.box-row { display: flex; gap: 16px; align-items: stretch; justify-content: center; flex-wrap: wrap; max-width: 100%; }
+.box-item { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 108px; max-width: 230px; padding: 12px 16px 14px; border-radius: 18px; border: 4px solid #8fa7b5; background: #fff; box-shadow: 0 3px 0 rgba(52, 68, 73, .12); }
+.box-label { font-size: 15px; font-weight: 800; letter-spacing: .3px; color: #4b6b7d; }
+.box-items { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; align-content: center; min-height: 58px; }
+.box-items .inline-art { width: 52px; height: 52px; }
+.box-item.box-kuqe { border-color: #e05555; } .box-item.box-kuqe .box-label { color: #b23131; }
+.box-item.box-blu { border-color: #4f83d6; } .box-item.box-blu .box-label { color: #3362ad; }
+.box-item.box-gjelber { border-color: #5aa96e; } .box-item.box-gjelber .box-label { color: #3d7f51; }
+.box-item.box-verdhe { border-color: #d9a92f; } .box-item.box-verdhe .box-label { color: #a97f16; }
+.box-item.box-neutral { border-color: #8fa7b5; }
+/* ---- Tabela e renditjes për fëmijë: kutiza + karta me ngjyra ---- */
+.kid-order { display: grid; gap: 14px; justify-items: center; }
+.kid-order-hint { margin: 0; color: var(--muted); font-weight: 700; font-size: 14px; text-align: center; }
+.kid-slots { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.kid-slot { width: 86px; height: 98px; border-radius: 18px; border: 3px dashed #a9c0cd; background: #fff; display: grid; place-items: center; }
+.kid-slot.filled { border-style: solid; border-color: var(--control-border); box-shadow: 0 3px 0 var(--line); }
+.kid-slot.over { border-color: var(--accent); background: var(--accent-soft); }
+.kid-slot-dot { font-size: 22px; font-weight: 800; color: #c3d2da; }
+.kid-scale { display: flex; align-items: center; gap: 10px; margin: 0; color: var(--muted); font-weight: 800; font-size: 13px; letter-spacing: .4px; }
+.kid-scale svg { width: 110px; height: 18px; }
+.kid-scale.desc svg { transform: scaleX(-1); }
+.kid-bank { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; align-items: center; width: 100%; min-height: 110px; padding: 12px 16px; border-radius: 18px; border: 2px dashed var(--control-border); background: var(--surface-subtle); }
+.kid-bank.over { border-color: var(--accent); }
+.kid-bank-empty { color: var(--muted); font-weight: 700; }
+.kid-card { width: 78px; height: 90px; border: 0; border-radius: 18px; font-size: 36px; font-weight: 900; color: #fff; cursor: grab; touch-action: none; box-shadow: 0 5px 0 rgba(52, 68, 73, .25); }
+.kid-card.dragging { opacity: .55; }
+.kid-card:active { cursor: grabbing; }
+.kid-card.t0 { background: #e05555; } .kid-card.t1 { background: #4f83d6; } .kid-card.t2 { background: #5aa96e; } .kid-card.t3 { background: #d9a92f; } .kid-card.t4 { background: #9473d4; }
+.kid-card.t3 { color: #57470e; }
+@media(max-width:650px){ .kid-slot { width: 62px; height: 76px; } .kid-slot-dot { font-size: 17px; } .kid-card { width: 56px; height: 70px; font-size: 26px; border-radius: 14px; } .kid-bank { min-height: 86px; } .kid-scale svg { width: 70px; } }
+@media(max-width:650px){ .box-row { gap: 10px; } .box-item { min-width: 92px; padding: 10px 10px 12px; } .box-items .inline-art { width: 42px; height: 42px; } }
 .answers { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
 .answer { background: var(--surface-subtle); color: var(--accent); border: 2px solid var(--line); border-radius: 14px; padding: 18px 20px; min-height: 62px; text-align: left; font-weight: 700; font-size: 15px; box-shadow: 0 3px 0 var(--line); }
 .answer:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--control-border); }

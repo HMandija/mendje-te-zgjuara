@@ -14,6 +14,9 @@ export const metadata: Metadata = {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
   },
+  // Përkthimi automatik i shfletuesit e ndryshon DOM-in ndërsa React punon dhe
+  // shkakton "removeChild" crash pas hyrjes; aplikacioni është vetëm në shqip.
+  other: { google: "notranslate" },
 };
 
 export default async function RootLayout({
@@ -23,7 +26,7 @@ export default async function RootLayout({
 }>) {
   const nonce = (await headers()).get('x-nonce') || undefined;
   return (
-    <html lang="sq" suppressHydrationWarning>
+    <html lang="sq" translate="no" suppressHydrationWarning>
       <body className="antialiased"><ExperienceProvider nonce={nonce}><SessionGuard/>{children}</ExperienceProvider></body>
     </html>
   );
