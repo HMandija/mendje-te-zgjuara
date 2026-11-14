@@ -7,6 +7,9 @@ assert.deepEqual(config.secrets?.required,['SUPABASE_URL','SUPABASE_PUBLISHABLE_
 assert.equal(config.d1_databases.length, 1);
 assert.equal(config.d1_databases[0].database_name, 'mendje-school');
 assert.equal(config.d1_databases[0].binding, 'DB');
+assert.deepEqual(config.ratelimits?.find(rate => rate.name === 'AUTH_RATE'),
+  {name:'AUTH_RATE',namespace_id:'1001',simple:{limit:900,period:60}},
+  'AUTH_RATE binding must be present in the production build');
 assert.equal(config.services.length, 0, 'Preview connector must not reach production');
 const source = await readFile('build/cloudflare-worker.ts', 'utf8');
 // Execute the actual gateway logic with a stubbed framework handler, no DB/network.

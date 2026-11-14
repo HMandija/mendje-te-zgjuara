@@ -1,7 +1,7 @@
 import {z} from 'zod';
-import {authorize,ApiError} from '../../../lib/school-access';
+import {authorize,ApiError,actorWorkspace} from '../../../lib/school-access';
 import {route} from '../../../lib/api-route';
-import {db,workspace,sessionRows} from '../../../lib/school-server';
+import {db,sessionRows} from '../../../lib/school-server';
 import {identifier,gradeSchema,categories} from '../../../lib/school-validation.mjs';
 import {ownedClass} from '../../../lib/product-server';
 import {progress} from '../../../lib/progress.mjs';
@@ -11,7 +11,7 @@ import {seedCatalog} from '../../../lib/catalog-seed.mjs';
 import type {Puzzle} from '../../../lib/learning-types';
 const query=z.object({kind:z.enum(['certificate','worksheet','report','csv']),profile:identifier.optional(),class:identifier.optional(),grade:z.coerce.number().pipe(gradeSchema),level:z.coerce.number().int().min(1).max(3).optional(),category:z.enum(['mixed',...categories]).optional()}).strict();
 export async function GET(r:Request){return route(async()=>{
- const actor=await authorize(r,'document:read'),x=query.parse(Object.fromEntries(new URL(r.url).searchParams)),w=await workspace(actor.owner);
+ const actor=await authorize(r,'document:read'),x=query.parse(Object.fromEntries(new URL(r.url).searchParams)),w=await actorWorkspace(actor);
  if(actor.role==='STUDENT'&&(x.kind!=='certificate'||x.profile!==actor.profile||x.grade!==actor.grade))throw new ApiError(403,'Dokumenti nuk lejohet.');
  let title='Mendje të Zgjuara',lines:string[]=[];
  if(x.kind==='certificate'){

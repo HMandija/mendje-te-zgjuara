@@ -1,6 +1,6 @@
 import {mixedPuzzles} from './mixed-pack.mjs';
-import {db,json,workspace} from './school-server';
-import {ApiError,limit,type Actor} from './school-access';
+import {db,json} from './school-server';
+import {ApiError,limit,actorWorkspace,type Actor} from './school-access';
 import {seedCatalog} from './catalog-seed.mjs';
 import {shuffle,shufflePuzzleForIssue} from './puzzles.mjs';
 import {publicPuzzle,evaluateAnswer} from './security-policy.mjs';
@@ -17,7 +17,7 @@ export async function startAdventure(actor:Actor,x:Started){
  if(actor.role==='STUDENT'&&(x.profile!==actor.profile||x.grade!==actor.grade))throw new ApiError(403,'Profili ose klasa nuk lejohet.');
  if(actor.classroom&&!x.assignment)throw new ApiError(403,'Zgjidh një nga detyrat që të ka caktuar mësuesi.');
  await limit('adventure-start:'+actor.principal,12);
- const w=await workspace(actor.owner);
+ const w=await actorWorkspace(actor);
  if(x.profile&&!w.profiles.some((p:{id:string})=>p.id===x.profile))throw new ApiError(404,'Profili nuk ekziston.');
  if(x.scene&&(x.level||x.assignment)||x.gameLevel&&(!x.scene||x.category!=='play'))throw new ApiError(400,'Niveli i lojës kërkon një lojë me figura pa detyrë kursi.');
  let mixed: Puzzle[]|null=null;let contentGrade=x.grade;

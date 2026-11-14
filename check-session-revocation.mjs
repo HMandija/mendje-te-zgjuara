@@ -33,6 +33,9 @@ try{
  const teacherExpiry=sql.prepare('SELECT expires FROM teacher_sessions WHERE hash=?').get(await school.hash(tokenA)).expires;
  assert(teacherExpiry-Date.now()<=30*60_000&&teacherExpiry-Date.now()>29*60_000,'Teacher D1 session starts with a 30-minute idle deadline');
  assert.deepEqual(await email.emailIdentity(request(tokenA)),{id:'supabase:teacher-id'});
+ const verifiedCalls=providerCalls;
+ assert.deepEqual(await email.emailIdentity(request(tokenA)),{id:'supabase:teacher-id'});
+ assert.equal(providerCalls,verifiedCalls,'A token verified within the last minute is not sent to Supabase again');
  assert(!JSON.stringify(sql.prepare('SELECT * FROM teacher_sessions').all()).includes(tokenA),'Only credential hashes belong in D1');
  await email.createEmailSession(request(),result(tokenB));
  providerLogoutFails=true;const exited=await email.logoutEmail(request(tokenA));assert.match(exited.headers.get('set-cookie'),/Max-Age=0/);
@@ -44,7 +47,14 @@ try{
  await assert.rejects(email.emailIdentity(request(tokenB)),e=>e.status===401);
  providerStatus=503;await assert.rejects(email.emailIdentity(request(tokenA)),e=>e.status===503);providerStatus=200;
  assert.deepEqual(await email.emailIdentity(request(tokenA)),{id:'supabase:teacher-id'},'Temporary provider errors fail closed without destroying a valid session');
- providerStatus=401;await assert.rejects(email.emailIdentity(request(tokenA)),e=>e.status===401);providerStatus=200;
+ // The cache never overrides D1: an expired session blocks the next call at once.
+ const hashedA=await school.hash(tokenA);sql.prepare('UPDATE teacher_sessions SET expires=0 WHERE hash=?').run(hashedA);
+ await assert.rejects(email.emailIdentity(request(tokenA)),e=>e.status===401);
+ sql.prepare('UPDATE teacher_sessions SET expires=? WHERE hash=?').run(Date.now()+30*60_000,hashedA);
+ assert.deepEqual(await email.emailIdentity(request(tokenA)),{id:'supabase:teacher-id'});
+ // Provider-side revocation is seen on the first call after the cache window.
+ email.clearEmailIdentityCache();providerStatus=401;await assert.rejects(email.emailIdentity(request(tokenA)),e=>e.status===401);providerStatus=200;
+ assert.equal(sql.prepare('SELECT count(*) AS n FROM teacher_sessions WHERE hash=?').get(hashedA).n,0,'A rejected provider token is revoked locally');
  await assert.rejects(email.emailIdentity(request(tokenA)),e=>e.status===401);
  await email.createEmailSession(request(),result(tokenA));sql.exec('UPDATE teacher_sessions SET expires=0');await assert.rejects(email.emailIdentity(request(tokenA)),e=>e.status===401);
  await email.logoutEmail(request(tokenA));await email.createEmailSession(request(),result(tokenA));
@@ -77,4 +87,4 @@ try{
  await email.createEmailSession(request(),result(tokenB));sql.exec("DELETE FROM accounts WHERE user='supabase:teacher-id'");
  assert.equal(sql.prepare('SELECT count(*) AS n FROM teacher_sessions').get().n,0);assert.equal(sql.prepare('SELECT count(*) AS n FROM picture_sessions').get().n,0);assert.equal(sql.prepare('SELECT count(*) AS n FROM student_sessions').get().n,0);assert.equal(await school.student(studentRequest(invite)),null);
 }finally{globalThis.fetch=originalFetch;delete globalThis.__sessionTest;sql.close();}
-console.log('Session revocation: teacher cookie replay, separate devices, expiry, provider failure, account disable/delete, picture and invite logout passed against migrated SQLite. Provider responses mocked.');
+console.log('Session revocation: teacher cookie replay, separate devices, expiry, minute-long provider verification cache, provider failure, account disable/delete, picture and invite logout passed against migrated SQLite. Provider responses mocked.');

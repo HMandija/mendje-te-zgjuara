@@ -4,6 +4,13 @@ import {DatabaseSync} from 'node:sqlite';
 import {seedCatalog,catalogSeed,CATALOG_ROWS} from './lib/catalog-seed.mjs';
 // The exercise bank must not be rebuilt (about 70 ms of CPU) on every request, yet a missing or stale bank must still be repaired.
 assert.equal(catalogSeed().length,CATALOG_ROWS,'CATALOG_ROWS must equal the real number of exercises');
+// Single-grade seeds must stay identical to the matching slice of the full bank.
+// Option order is deliberately shuffled per build, so compare it order-independent.
+const canon=p=>{const copy={...p};if(Array.isArray(copy.options))copy.options=[...copy.options].sort();return JSON.stringify(copy);};
+const fullKeys=new Set(catalogSeed().map(canon)),perGrade=[1,2,3,4].flatMap(grade=>catalogSeed(grade));
+assert.equal(perGrade.length,CATALOG_ROWS,'per-grade seeds cover every exercise');
+assert.equal(new Set(perGrade.map(p=>p.id)).size,CATALOG_ROWS,'per-grade seeds have unique ids');
+assert(perGrade.every(p=>fullKeys.has(canon(p))),'per-grade seeds match the full bank');
 const sql=new DatabaseSync(':memory:');for(const file of fs.readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())sql.exec(fs.readFileSync('drizzle/'+file,'utf8'));
 let prepares=0;
 const make=()=>({prepare(query){prepares++;let args=[];return {bind(...values){args=values;return this;},async first(){return sql.prepare(query).get(...args)||null;},async run(){return sql.prepare(query).run(...args);},async all(){return {results:sql.prepare(query).all(...args)};}};},async batch(list){return Promise.all(list.map(s=>s.run()));}});

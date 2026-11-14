@@ -3,6 +3,11 @@ import {ApiError} from './school-access';
 import {db,hash} from './school-server';
 import {IDLE_SESSION_MS} from './session-policy';
 export const EMAIL_COOKIE='mendje_teacher';
+const VERIFY_MS=60_000,verified=new Map<string,{user:string;until:number}>();
+// Provider verification is cached per token for a minute. D1 session rows remain
+// authoritative: expiry, account state and role are still checked on every call.
+export function clearEmailIdentityCache(){verified.clear();}
+function verifiedUntil(h:string,now:number){const cached=verified.get(h);if(!cached)return null;if(cached.until>now)return cached;verified.delete(h);return null;}
 function config(){const e=env as unknown as Record<string,string>;const url=e.SUPABASE_URL,key=e.SUPABASE_PUBLISHABLE_KEY;if(!url||!key)throw new ApiError(503,'Hyrja me email po përgatitet. Administratori duhet të aktivizojë Supabase.');if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url))throw new ApiError(503,'Konfigurimi i hyrjes kërkon kontroll.');return {url,key};}
 export function emailReady(){const e=env as unknown as Record<string,string>;return !!(e.SUPABASE_URL&&e.SUPABASE_PUBLISHABLE_KEY);}
 function providerError(status:number,result:Record<string,unknown>){
@@ -43,12 +48,14 @@ export async function emailSessionPresent(r:Request){const token=authCookieToken
 export async function emailIdentity(r:Request){
  const token=authCookieToken(r);if(!token)return null;
  const now=Date.now(),h=await hash(token),row=await db().prepare("SELECT s.user FROM teacher_sessions s JOIN accounts a ON a.user=s.user WHERE s.hash=? AND s.expires>? AND a.enabled=1 AND a.role='TEACHER'").bind(h,now).first<{user:string}>();
- if(!row)throw new ApiError(401,'Sesioni përfundoi. Hyr sërish në llogari.');
+ if(!row){verified.delete(h);throw new ApiError(401,'Sesioni përfundoi. Hyr sërish në llogari.');}
  // `expires` is a sliding 30-minute idle deadline. Touch it at most every
  // five minutes to keep active sessions alive without writing on every API call.
  await db().prepare('UPDATE teacher_sessions SET expires=? WHERE hash=? AND expires>? AND expires<?').bind(now+IDLE_SESSION_MS,h,now,now+IDLE_SESSION_MS-5*60_000).run();
- try{const u=await authCall('user','GET',undefined,token);if(typeof u.id!=='string'||!u.email_confirmed_at||row.user!=='supabase:'+u.id)throw new ApiError(401,'Hyr sërish në llogari.');return {id:row.user};}
- catch(error){if(error instanceof ApiError&&error.status===401)await db().prepare('DELETE FROM teacher_sessions WHERE hash=?').bind(h).run();throw error;}
+ const cached=verifiedUntil(h,now);
+ if(cached&&row.user==='supabase:'+cached.user)return {id:row.user};
+ try{const u=await authCall('user','GET',undefined,token);if(typeof u.id!=='string'||!u.email_confirmed_at||row.user!=='supabase:'+u.id)throw new ApiError(401,'Hyr sërish në llogari.');if(verified.size>200)for(const [key,entry] of verified)if(entry.until<=now)verified.delete(key);verified.set(h,{user:u.id,until:now+VERIFY_MS});return {id:row.user};}
+ catch(error){if(error instanceof ApiError&&error.status===401){verified.delete(h);await db().prepare('DELETE FROM teacher_sessions WHERE hash=?').bind(h).run();}throw error;}
 }
 export async function createEmailSession(r:Request,result:Record<string,unknown>){
  const user=result.user as {id?:string;email_confirmed_at?:string}|undefined,token=result.access_token;
@@ -57,7 +64,7 @@ export async function createEmailSession(r:Request,result:Record<string,unknown>
  await db().prepare("INSERT OR IGNORE INTO accounts(user,role) VALUES(?,'TEACHER')").bind(owner).run();
  const seconds=Math.min(3600,Math.max(1,Number(result.expires_in)||3600));
  const previous=authCookieToken(r);
- if(previous)await db().prepare('DELETE FROM teacher_sessions WHERE hash=?').bind(await hash(previous)).run();
+ if(previous){const ph=await hash(previous);verified.delete(ph);await db().prepare('DELETE FROM teacher_sessions WHERE hash=?').bind(ph).run();}
  const saved=await db().prepare("INSERT INTO teacher_sessions(hash,user,expires) SELECT ?,user,? FROM accounts WHERE user=? AND enabled=1 AND role='TEACHER' RETURNING user").bind(await hash(token),Date.now()+Math.min(seconds*1000,IDLE_SESSION_MS),owner).first();
  if(!saved)throw new ApiError(403,'Llogaria nuk është aktive.');
  await db().prepare('DELETE FROM teacher_sessions WHERE hash IN (SELECT hash FROM teacher_sessions WHERE expires<=? LIMIT 100)').bind(Date.now()).run();
@@ -69,7 +76,7 @@ export async function revokeProviderSession(token:string){
 }
 export async function logoutEmail(r:Request){
  const token=authCookieToken(r);
- if(token){await db().prepare('DELETE FROM teacher_sessions WHERE hash=?').bind(await hash(token)).run();await revokeProviderSession(token);}
+ if(token){const h=await hash(token);verified.delete(h);await db().prepare('DELETE FROM teacher_sessions WHERE hash=?').bind(h).run();await revokeProviderSession(token);}
  return Response.json({saved:true},{headers:{'Set-Cookie':sessionCookie(r,'',0),'Cache-Control':'no-store'}});
 }
 export function sessionCookie(r:Request,token:string,seconds:number){return EMAIL_COOKIE+'='+token+'; Path=/; HttpOnly; SameSite=Lax; Max-Age='+Math.min(3600,Math.max(0,seconds))+(new URL(r.url).protocol==='https:'?'; Secure':'');}

@@ -4,9 +4,10 @@ import {input,route} from '../../../lib/api-route';
 import {applyWorld,initialWorld,normalizeWorld,unlockedWorld,worldCommandSchema,worldStars,completedWorld,type WorldState} from '../../../lib/robot-world';
 import {ownedClass} from '../../../lib/product-server';
 import {identifier} from '../../../lib/school-validation.mjs';
-type Row={payload:string;revision:number;updated:number};
+type Row={payload:string;revision:number;updated:number;duplicate?:number};
 async function danceClasses(actor:{owner:string;profile?:string;classroom?:string}){const rows=await db().prepare('SELECT c.id,c.name FROM classes c JOIN class_students m ON m.class=c.id LEFT JOIN classroom_settings s ON s.class=c.id WHERE c.owner=? AND m.profile=? AND COALESCE(s.archived,0)=0 ORDER BY c.name').bind(actor.owner,actor.profile).all<{id:string;name:string}>();return rows.results.filter(c=>!actor.classroom||actor.classroom===c.id);}
-async function read(owner:string,profile:string){return db().prepare('SELECT payload,revision,updated FROM robot_worlds WHERE owner=? AND profile=?').bind(owner,profile).first<Row>();}
+// The retry check rides along with the world read so a command costs one fewer D1 round-trip.
+async function read(owner:string,profile:string,event?:string){return event?db().prepare('SELECT payload,revision,updated,EXISTS(SELECT 1 FROM robot_world_events WHERE owner=? AND profile=? AND id=?) AS duplicate FROM robot_worlds WHERE owner=? AND profile=?').bind(owner,profile,event,owner,profile).first<Row>():db().prepare('SELECT payload,revision,updated FROM robot_worlds WHERE owner=? AND profile=?').bind(owner,profile).first<Row>();}
 export async function GET(r:Request){return route(async()=>{
  if(new URL(r.url).searchParams.has('dances')){const actor=await authorize(r,'student:read');if(actor.role!=='STUDENT'||!actor.profile)throw new ApiError(403,'Hyrja e nxënësit kërkohet.');const classes=await danceClasses(actor),classId=new URL(r.url).searchParams.get('classId');if(!classId)return json({classes,dances:[]});if(!classes.some(c=>c.id===classId))throw new ApiError(403,'Vallëzimet shihen vetëm brenda klasës tënde.');const rows=await db().prepare('SELECT w.payload FROM robot_worlds w JOIN class_students m ON m.profile=w.profile AND m.class=? WHERE w.owner=? AND json_extract(w.payload,\'$.festival.shared.classId\')=? ORDER BY json_extract(w.payload,\'$.festival.shared.at\') DESC LIMIT 40').bind(classId,actor.owner,classId).all<{payload:string}>();return json({classes,dances:rows.results.map(row=>{const state=normalizeWorld(JSON.parse(row.payload));return {robot:state.robot,program:state.festival.shared?.program||[],at:state.festival.shared?.at||0};})});}
  const classId=new URL(r.url).searchParams.get('class');
@@ -16,8 +17,9 @@ export async function POST(r:Request){return route(async()=>{
  requireOrigin(r);const actor=await authorize(r,'student:finish');if(actor.role!=='STUDENT'||!actor.profile)throw new ApiError(403,'Hyrja e nxënësit kërkohet.');const command=await input(r,worldCommandSchema),database=db();
  if(command.action==='share-dance'&&!(await danceClasses(actor)).some(c=>c.id===command.classId))throw new ApiError(422,'Vallëzimi ndahet vetëm me klasën tënde aktive.');
  await database.prepare('INSERT OR IGNORE INTO robot_worlds(owner,profile,payload,updated) VALUES(?,?,?,?)').bind(actor.owner,actor.profile,JSON.stringify(initialWorld()),Date.now()).run();
- if(await database.prepare('SELECT id FROM robot_world_events WHERE owner=? AND profile=? AND id=?').bind(actor.owner,actor.profile,command.id).first()){const row=await read(actor.owner,actor.profile);return json({state:normalizeWorld(JSON.parse(row!.payload)),revision:row!.revision,duplicate:true,earned:0});}
- const row=(await read(actor.owner,actor.profile))!,state=normalizeWorld(JSON.parse(row.payload) as WorldState);
+ const existing=await read(actor.owner,actor.profile,command.id);
+ if(existing?.duplicate)return json({state:normalizeWorld(JSON.parse(existing.payload)),revision:existing.revision,duplicate:true,earned:0});
+ const row=existing!,state=normalizeWorld(JSON.parse(row.payload) as WorldState);
  let outcome;try{outcome=applyWorld(state,command,actor.grade||1,(Date.now()-row.updated)/1000);}catch(e){if(['cook-meal','buy','place','unplace','equip','unequip'].includes(command.action))throw new ApiError(422,e instanceof Error?e.message:'Provo përsëri.');throw new ApiError(409,'Përfundo sfidën e mëparshme.');}
  const revision=row.revision+1,now=Date.now();const results=await database.batch([
   database.prepare('UPDATE robot_worlds SET payload=?,revision=?,last_event=?,updated=? WHERE owner=? AND profile=? AND revision=? AND NOT EXISTS(SELECT 1 FROM robot_world_events WHERE owner=? AND profile=? AND id=?)').bind(JSON.stringify(outcome.state),revision,command.id,now,actor.owner,actor.profile,row.revision,actor.owner,actor.profile,command.id),

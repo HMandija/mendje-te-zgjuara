@@ -1,8 +1,8 @@
-import {json,db,workspace,sameOrigin,sessionRows} from '../../../lib/school-server';
-import {authorize,ApiError} from '../../../lib/school-access';
+import {json,db,sameOrigin,sessionRows} from '../../../lib/school-server';
+import {authorize,ApiError,actorWorkspace} from '../../../lib/school-access';
 import {input,route} from '../../../lib/api-route';
 import {workspaceSchema,deleteProfileSchema} from '../../../lib/school-validation.mjs';
-export async function GET(r:Request){return route(async()=>{const actor=await authorize(r,'workspace:read');return json({...await workspace(actor.owner),scope:actor.owner,role:actor.role,sessions:await sessionRows(actor.owner)});});}
+export async function GET(r:Request){return route(async()=>{const actor=await authorize(r,'workspace:read');return json({...await actorWorkspace(actor),scope:actor.owner,role:actor.role,sessions:await sessionRows(actor.owner)});});}
 export async function PUT(r:Request){return route(async()=>{
  const actor=await authorize(r,'workspace:write');
  if(!sameOrigin(r))throw new ApiError(403,'Origjinë e palejuar.');
@@ -15,7 +15,7 @@ export async function PUT(r:Request){return route(async()=>{
 });}
 export async function DELETE(r:Request){return route(async()=>{
  const actor=await authorize(r,'workspace:write');if(!sameOrigin(r))throw new ApiError(403,'Origjinë e palejuar.');
- const x=await input(r,deleteProfileSchema),w=await workspace(actor.owner);
+ const x=await input(r,deleteProfileSchema),w=await actorWorkspace(actor);
  if(x.revision!==w.revision)throw new ApiError(409,'Ringarko profilet përpara fshirjes.');
  const payload=JSON.stringify({profiles:w.profiles.filter(p=>p.id!==x.profile),custom:w.custom});
  const guard="AND NOT EXISTS (SELECT 1 FROM workspaces, json_each(workspaces.payload,'$.profiles') p WHERE workspaces.owner=? AND json_extract(p.value,'$.id')=?)";

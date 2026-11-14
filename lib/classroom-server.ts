@@ -4,7 +4,7 @@ import {guardedPictureLogin} from './picture-login-guard';
 import {reserveMixed} from './mixed-pack.mjs';
 import {z} from 'zod';
 import {db,workspace,json,hash} from './school-server';
-import {ApiError,limit,type Actor} from './school-access';
+import {ApiError,limit,actorWorkspace,type Actor} from './school-access';
 import {identifier} from './school-validation.mjs';
 import {ownedClass,assignmentInput} from './product-server';
 import {pictureIds} from './picture-catalog';
@@ -31,7 +31,7 @@ export const deleteAssignmentInput=z.object({id:identifier}).strict();
 const randomToken=()=>[...crypto.getRandomValues(new Uint8Array(32))].map(b=>b.toString(16).padStart(2,'0')).join('');
 const randomPicture=(previous?:string)=>{const options=pictureIds.filter(id=>id!==previous);return options[crypto.getRandomValues(new Uint32Array(1))[0]%options.length];};
 async function changeProfiles(actor:Actor,transform:(p:Awaited<ReturnType<typeof workspace>>['profiles'])=>Awaited<ReturnType<typeof workspace>>['profiles']){
- const w=await workspace(actor.owner),profiles=transform(w.profiles);
+ const w=await actorWorkspace(actor),profiles=transform(w.profiles);
  if(profiles.length>2000)throw new ApiError(400,'Eksporto ose arkivo të dhënat përpara se të shtosh më shumë nxënës.');
  await db().prepare('INSERT OR IGNORE INTO workspaces(owner,payload,revision) VALUES(?,?,0)').bind(actor.owner,JSON.stringify({profiles:[],custom:[]})).run();
  const r=await db().prepare('UPDATE workspaces SET payload=?,revision=revision+1 WHERE owner=? AND revision=?').bind(JSON.stringify({profiles,custom:w.custom}),actor.owner,w.revision).run();
@@ -39,7 +39,7 @@ async function changeProfiles(actor:Actor,transform:(p:Awaited<ReturnType<typeof
  return profiles;
 }
 export async function rosterData(actor:Actor,id:string){
- const c=await ownedClass(actor,id),w=await workspace(actor.owner);
+ const c=await ownedClass(actor,id),w=await actorWorkspace(actor);
  const members=await db().prepare('SELECT m.profile,l.picture,g.locked,g.retry_at FROM class_students m LEFT JOIN picture_logins l ON l.class=m.class AND l.profile=m.profile LEFT JOIN picture_login_guard g ON g.class=m.class AND g.profile=m.profile WHERE m.class=?').bind(c.id).all<{profile:string;picture:string|null;locked:number|null;retry_at:number|null}>();
  return json({students:members.results.flatMap(m=>{const p=w.profiles.find(p=>p.id===m.profile);return p?[{...p,picture:m.picture,loginLocked:!!m.locked,loginWaiting:(m.retry_at||0)>Date.now()}]:[];})});
 }
