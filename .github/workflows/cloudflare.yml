@@ -24,6 +24,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Install Scratch editor dependencies
+        run: npm ci --prefix coding-editor
       - name: Audit production dependencies
         run: npm audit --omit=dev
       - run: npm run lint
