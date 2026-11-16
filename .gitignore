@@ -5,6 +5,8 @@ preview-v2.png
 preview-step0.png
 preview-redesign.png
 node_modules/
+coding-editor/build/
+public/coding-lab/
 dist/
 runtime-starter/
 .sites-runtime/

@@ -19,7 +19,7 @@ const source='const {db,workspace,hash,ApiError}=globalThis.__roster;\n'+fs.read
 const {importRoster}=await import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText).toString('base64'));
 sql.exec("INSERT INTO schools(id,owner,name) VALUES('school','teacher','Fixture')");
 let counter=0;
-function classroom(){const id='class-'+(++counter);sql.prepare('INSERT INTO classes(id,school,owner,name,grade,code) VALUES(?,?,?,?,?,?)').run(id,'school','teacher','Fixture',1,id);return {id,grade:1};}
+function classroom(grade=1){const id='class-'+(++counter);sql.prepare('INSERT INTO classes(id,school,owner,name,grade,code) VALUES(?,?,?,?,?,?)').run(id,'school','teacher','Fixture',grade,id);return {id,grade};}
 const add=(c,names,id=crypto.randomUUID(),owner='teacher')=>importRoster(owner,c,names,id,()=> 'cat');
 const count=(table,c)=>sql.prepare(`SELECT COUNT(*) n FROM ${table} WHERE class=?`).get(c.id).n;
 const names=Array.from({length:100},(_,i)=>'Nxënësi '+i);
@@ -50,6 +50,9 @@ try{
  const competing=await Promise.allSettled([add(conflict,['First']),add(conflict,['Second'])]);
  assert.equal(competing.filter(r=>r.status==='fulfilled').length,1);assert.equal(competing.find(r=>r.status==='rejected').reason.status,409);
  assert.equal(count('class_students',conflict),1);assert.equal(count('picture_logins',conflict),1);
+ const fifth=classroom(5);await add(fifth,['Klasa e pestë']);
+ const fifthProfile=(await workspace('teacher')).profiles.find(p=>p.name==='Klasa e pestë');
+ assert.equal(fifthProfile.grade,5);assert.equal(count('class_students',fifth),1);assert.equal(count('picture_logins',fifth),1);
  const cap=classroom();sql.prepare('UPDATE workspaces SET payload=? WHERE owner=?').run(JSON.stringify({profiles:Array.from({length:2000},(_,i)=>({id:'cap'+i,name:'Test',grade:1})),custom:[]}),'teacher');
  await assert.rejects(add(cap,['Extra']),e=>e.status===400);assert.equal(count('class_students',cap),0);
  sql.prepare('DELETE FROM classes WHERE id=?').run(parallel.id);assert.equal(count('roster_imports',parallel),0,'Deleting a class cleans its import receipts');

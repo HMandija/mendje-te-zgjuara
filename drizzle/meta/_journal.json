@@ -92,6 +92,20 @@
       "when": 1792368000000,
       "tag": "0018_assignment_levels",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1792454400000,
+      "tag": "0019_coding_lab",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1794700800000,
+      "tag": "0020_coding_private",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,6 @@
 import handler from "vinext/server/fetch-handler";
 import { browserPolicy, createScriptNonce, secureBrowserResponse } from '../lib/browser-security.mjs';
+import {collectCodingObjects} from '../lib/coding-project-server';
 
 export default {
   async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext) {
@@ -16,6 +17,7 @@ export default {
     const country=request.cf?.country;
     if(typeof country==='string')headers.set('x-mendje-country',country);
     const url=new URL(request.url);
+    if(env.BUCKET&&url.pathname.startsWith('/api/'))ctx.waitUntil(collectCodingObjects().catch(()=>console.error('Coding storage cleanup unavailable')));
     if(env.DB&&request.method==='GET'&&!url.pathname.startsWith('/api/')&&!url.pathname.includes('.')&&!url.pathname.startsWith('/_next/')){
       const day=new Date().toISOString().slice(0,10);
       // Fixed known paths only: no URLs, query strings or personal identifiers.

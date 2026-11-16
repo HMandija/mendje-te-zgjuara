@@ -8,7 +8,7 @@ const nonce=createScriptNonce(), policy=browserPolicy(nonce);
 const script=policy.split('; ').find(p=>p.startsWith('script-src '));
 assert.ok(script.includes(`'nonce-${nonce}'`));
 assert.ok(!script.includes('unsafe-inline')&&!script.includes('unsafe-eval'));
-for(const rule of ["script-src-attr 'none'","frame-ancestors 'none'","frame-src 'none'","object-src 'none'","base-uri 'none'","form-action 'self'","media-src 'self' blob:"]) assert.ok(policy.includes(rule));
+for(const rule of ["script-src-attr 'none'","frame-ancestors 'none'","frame-src 'self'","object-src 'none'","base-uri 'none'","form-action 'self'","media-src 'self' blob:"]) assert.ok(policy.includes(rule));
 
 for(const [path,type,status] of [['/admin','text/html',200],['/student','text/x-component',200],['/api/roster','application/json',401],['/missing','text/html',404],['/api/documents','application/pdf',200]]) {
   const headers=new Headers({'Content-Type':type,'Cache-Control':'public, max-age=3600',ETag:'old','X-Powered-By':'framework'});
@@ -34,4 +34,16 @@ assert.equal(redirect.status,307);assert.equal(redirect.headers.get('Location'),
 const local=secureBrowserResponse(new Response('asset',{headers:{'Cache-Control':'public, max-age=31536000, immutable'}}),new Request('http://localhost:5185/example.js'),policy);
 assert.equal(local.headers.get('Strict-Transport-Security'),null);
 assert.equal(local.headers.get('Cache-Control'),'public, max-age=31536000, immutable');
+for(const path of ['/coding-lab/index.html','/coding-lab/lab-gui.js']){
+ const editor=secureBrowserResponse(new Response('asset'),new Request('https://school.example'+path),policy);
+ assert.equal(editor.headers.get('X-Frame-Options'),'SAMEORIGIN');
+ assert.equal(editor.headers.get('Access-Control-Allow-Origin'),'*');
+ assert.equal(editor.headers.get('Cross-Origin-Resource-Policy'),'cross-origin');
+ assert.match(editor.headers.get('Content-Security-Policy'),/frame-ancestors 'self'/);
+ assert.match(editor.headers.get('Content-Security-Policy'),/script-src 'self' 'unsafe-eval'/);
+}
+const ordinary=secureBrowserResponse(new Response('page'),new Request('https://school.example/student'),policy);
+assert.equal(ordinary.headers.get('Access-Control-Allow-Origin'),null);
+assert.equal(ordinary.headers.get('Cross-Origin-Resource-Policy'),'same-origin');
+assert.ok(!ordinary.headers.get('Content-Security-Policy').includes('unsafe-eval'));
 console.log('Browser security: fresh nonces, restrictive scripts/frames, private caches, streamed bodies, cookies, redirects and local HTTP passed.');

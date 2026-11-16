@@ -11,6 +11,8 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "coding-editor/build/**",
+    "public/coding-lab/**",
     "next-env.d.ts",
     "dist/**",
     "runtime-starter/**",
@@ -18,6 +20,10 @@ const eslintConfig = defineConfig([
     ".wrangler/**",
     ".vinext/**",
   ]),
+  {
+    files: ["coding-editor/*.cjs"],
+    rules: {"@typescript-eslint/no-require-imports": "off"},
+  },
   {
     files: ["components/ui/**/*.{ts,tsx}", "hooks/use-mobile.ts"],
     rules: {

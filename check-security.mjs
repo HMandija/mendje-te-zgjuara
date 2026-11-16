@@ -1,8 +1,16 @@
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {allowed,evaluateAnswer,publicPuzzle} from './lib/security-policy.mjs';
 import {catalogSeed,seedCatalog} from './lib/catalog-seed.mjs';
 import {DatabaseSync} from 'node:sqlite';
 import {startSchema,submissionSchema,hintSchema,workspaceSchema} from './lib/school-validation.mjs';
+const manifest=JSON.parse(readFileSync(new URL('./package.json',import.meta.url),'utf8'));
+for(const name of ['react','react-dom','react-server-dom-webpack']){
+ assert.equal(manifest.dependencies[name],manifest.dependencies.react,'React runtime versions must match and be included in production audits');
+ assert.equal(manifest.devDependencies[name],undefined);
+}
+const [reactMajor,reactMinor,reactPatch]=manifest.dependencies.react.split('.').map(Number);
+assert.ok(reactMajor>19||reactMajor===19&&(reactMinor>2||reactMinor===2&&reactPatch>=9),'Use the patched React runtime');
 for(const role of ['TEACHER','ADMIN'])for(const permission of ['workspace:read','workspace:write','invite:create','invite:revoke','session:finish'])assert(allowed(role,permission));
 for(const permission of ['workspace:read','workspace:write','invite:create','invite:revoke','session:finish'])assert(!allowed('STUDENT',permission));
 for(const permission of ['student:read','student:finish']){assert(allowed('STUDENT',permission));assert(!allowed('TEACHER',permission));assert(!allowed('ADMIN',permission));}

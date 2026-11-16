@@ -1,0 +1,21 @@
+{
+ "gui.sharedMessages.backdrop":"sfondi{index}",
+ "gui.sharedMessages.costume":"veshja{index}",
+ "gui.sharedMessages.sprite":"Personazhi{index}",
+ "gui.sharedMessages.pop":"Plasje",
+ "gui.sharedMessages.replaceProjectWarning":"Të zëvendësohet përmbajtja e projektit aktual?",
+ "gui.sharedMessages.loadFromComputerTitle":"Hap nga kompjuteri",
+ "gui.aria.clearButton":"Pastro",
+ "gui.aria.startProjectButton":"Fillo projektin",
+ "gui.aria.aboutMenu":"Menuja e informacionit",
+ "gui.aria.accountMenu":"Menuja e llogarisë",
+ "gui.aria.authorInfo":"Projekti «{projectTitle}» nga {username}",
+ "gui.aria.editMenu":"Menuja e ndryshimeve",
+ "gui.aria.fileMenu":"Menuja e skedarëve",
+ "gui.aria.languageMenu":"Menuja e gjuhës",
+ "gui.aria.modeMenu":"Menuja e mënyrës",
+ "gui.aria.settingsMenu":"Menuja e cilësimeve",
+ "gui.menuBar.theme":"Tema",
+ "gui.menuBar.colorMode":"Mënyra e ngjyrave",
+ "gui.aria.stopProjectButton":"Ndalo projektin"
+}

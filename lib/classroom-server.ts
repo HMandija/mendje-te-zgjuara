@@ -77,7 +77,7 @@ export async function loginPicture(r:Request,x:z.infer<typeof pictureInput>){
 }
 export async function logoutPicture(r:Request){const raw=r.headers.get('authorization')||'';if(/^Bearer [a-f0-9]{64}$/.test(raw)){const h=await hash(raw.slice(7));await db().batch([db().prepare('DELETE FROM picture_sessions WHERE hash=?').bind(h),db().prepare('DELETE FROM student_sessions WHERE hash=?').bind(h),db().prepare('UPDATE invitations SET revoked=1 WHERE hash=?').bind(h)]);}return json({loggedOut:true});}
 export async function assignClasses(actor:Actor,x:z.infer<typeof bulkAssignmentInput>){
- const classes=await Promise.all(x.classes.map(id=>ownedClass(actor,id)));if(new Set(classes.map(c=>c.grade)).size!==1)throw new ApiError(400,'Detyrat e përbashkëta duhet të kenë të njëjtin vit shkollor.');
+ const classes=await Promise.all(x.classes.map(id=>ownedClass(actor,id)));if(classes.some(c=>c.grade===5))throw new ApiError(400,'Për klasën e pestë përdor misionet e laboratorit.');if(new Set(classes.map(c=>c.grade)).size!==1)throw new ApiError(400,'Detyrat e përbashkëta duhet të kenë të njëjtin vit shkollor.');
  const sourceGrade=x.task.lessonId?curriculumLesson(x.task.lessonId)?.grade:x.task.sourceGrade||classes[0].grade;
  if(!sourceGrade||x.task.sourceGrade&&x.task.sourceGrade!==sourceGrade)throw new ApiError(400,'Klasa e mësimit është e pavlefshme.');
  if(classes.some(c=>c.grade!==sourceGrade)&&!x.task.allowGradeMismatch)throw new ApiError(409,`Ky mësim është për klasën ${sourceGrade}. Konfirmoni caktimin për një klasë tjetër.`);
@@ -89,6 +89,7 @@ export async function assignClasses(actor:Actor,x:z.infer<typeof bulkAssignmentI
 }
 export async function changeAssignment(actor:Actor,x:z.infer<typeof editAssignmentInput>|z.infer<typeof deleteAssignmentInput>){
  const a=await db().prepare('SELECT a.id,a.mixed_number,a.count,a.source_grade,c.grade FROM assignments a JOIN classes c ON c.id=a.class WHERE a.id=? AND c.owner=?').bind(x.id,actor.owner).first<{id:string;grade:number;mixed_number:number|null;count:number;source_grade:number|null}>();if(!a)throw new ApiError(404,'Detyra nuk u gjet.');
+ if('task' in x&&a.grade===5)throw new ApiError(400,'Për klasën e pestë përdor misionet e laboratorit.');
  if('task' in x&&(a.mixed_number?x.task.category!=='mixed'||!!x.task.scene||!!x.task.lessonId||x.task.count!==a.count:x.task.category==='mixed'&&!x.task.scene&&!x.task.lessonId))throw new ApiError(400,'Për një paketë të re kuizesh përdor Cakto një mësim të ri.');
  const sourceGrade='task' in x?(x.task.lessonId?curriculumLesson(x.task.lessonId)?.grade:x.task.sourceGrade||a.source_grade||a.grade):a.grade;
  if(!sourceGrade)throw new ApiError(400,'Mësimi nuk u gjet.');
